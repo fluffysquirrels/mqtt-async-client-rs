@@ -1,3 +1,6 @@
+mod value_types;
+pub use value_types::*;
+
 use bytes::BytesMut;
 use crate::{
     Result,
@@ -28,69 +31,6 @@ pub struct Client {
     _runtime: TokioRuntime,
 
     stream: Option<TcpStream>,
-}
-
-#[derive(Clone, Debug)]
-pub struct Publish {
-    topic: String,
-    payload: Vec<u8>,
-}
-
-impl Publish {
-    pub fn new(topic: String, payload: Vec<u8>) -> Publish {
-        Publish {
-            topic,
-            payload,
-        }
-    }
-
-    // TODO: More options, especially QoS.
-}
-
-pub use mqttrs::{
-    QoS,
-    SubscribeReturnCodes,
-    SubscribeTopic,
-};
-
-#[derive(Debug)]
-pub struct Subscribe {
-    topics: Vec<SubscribeTopic>,
-}
-
-impl Subscribe {
-    pub fn new(v: Vec<SubscribeTopic>) -> Subscribe {
-        Subscribe {
-            topics: v,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct SubscribeResult {
-    return_codes: Vec<SubscribeReturnCodes>,
-}
-
-impl SubscribeResult {
-    pub fn return_codes(&self) -> &[SubscribeReturnCodes] {
-        &*self.return_codes
-    }
-}
-
-#[derive(Debug)]
-pub struct ReadResult {
-    topic: String,
-    payload: Vec<u8>,
-}
-
-impl ReadResult {
-    pub fn topic(&self) -> &str {
-        &*self.topic
-    }
-
-    pub fn payload(&self) -> &[u8] {
-        &*self.payload
-    }
 }
 
 impl Client {
@@ -136,8 +76,8 @@ impl Client {
             dup: false, // TODO.
             qospid: QosPid::AtMostOnce, // TODO: the other QoS options
             retain: false, // TODO
-            topic_name: p.topic,
-            payload: p.payload,
+            topic_name: p.topic().to_owned(),
+            payload: p.payload().to_owned(),
         });
         self.write_packet(&p2).await?;
         Ok(())
@@ -146,12 +86,12 @@ impl Client {
     pub async fn subscribe(&mut self, s: Subscribe) -> Result<SubscribeResult> {
         let pid = self.alloc_pid()?;
         // TODO: Support subscribe to qos != AtMostOnce.
-        if s.topics.iter().any(|t| t.qos != QoS::AtMostOnce) {
+        if s.topics().iter().any(|t| t.qos != QoS::AtMostOnce) {
             return Err("Only Qos::AtMostOnce supported right now".to_owned().into())
         }
         let p = Packet::Subscribe(mqttrs::Subscribe {
             pid: pid,
-            topics: s.topics,
+            topics: s.topics().to_owned(),
         });
         self.write_packet(&p).await?;
         let r = self.read_packet().await?;
