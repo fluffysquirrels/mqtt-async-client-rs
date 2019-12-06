@@ -23,7 +23,7 @@ pub struct Client {
     host: String,
     port: u16,
     username: Option<String>,
-    password: Option<String>,
+    password: Option<Vec<u8>>,
     keep_alive: u16,
     _runtime: TokioRuntime,
 
@@ -110,7 +110,7 @@ impl Client {
             clean_session: true, // TODO
             last_will: None, // TODO
             username: self.username.clone(),
-            password: self.password.clone().map(|s| s.as_bytes().to_vec()),
+            password: self.password.clone(),
         });
         self.write_packet(&conn).await?;
         // TODO: timeout on CONNACK
@@ -266,7 +266,7 @@ pub struct ClientBuilder {
     host: Option<String>,
     port: Option<u16>,
     username: Option<String>,
-    password: Option<String>,
+    password: Option<Vec<u8>>,
     keep_alive: Option<u16>,
     runtime: TokioRuntime,
 }
@@ -313,7 +313,7 @@ impl ClientBuilder {
     }
 
     /// Set password to authenticate with.
-    pub fn set_password(&mut self, password: Option<String>) -> &mut Self {
+    pub fn set_password(&mut self, password: Option<Vec<u8>>) -> &mut Self {
         self.password = password;
         self
     }

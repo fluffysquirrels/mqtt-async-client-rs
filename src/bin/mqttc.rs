@@ -96,6 +96,6 @@ fn client_from_args(args: Args) -> Result<Client> {
         .set_host(args.host)
         .set_port(args.port)
         .set_username(args.username)
-        .set_password(args.password)
+        .set_password(args.password.map(|s| s.as_bytes().to_vec()))
         .build()
 }
