@@ -29,6 +29,8 @@ struct Args {
 
     #[structopt(long, default_value="1883")]
     port: u16,
+
+    // TODO: TLS: CA cert to validate server, client cert.
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -41,11 +43,14 @@ enum Command {
 struct Publish {
     topic: String,
     message: String,
+    // TODO: Message retention.
+    // TODO: QoS.
 }
 
 #[derive(Clone, Debug, StructOpt)]
 struct Subscribe {
     topic: Vec<String>,
+    // TODO: QoS.
 }
 
 #[tokio::main]
@@ -76,9 +81,10 @@ async fn publish(pub_args: Publish, args: Args) -> Result<()> {
 async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
     let mut client = client_from_args(args)?;
     client.connect().await?;
-    client.subscribe(SubscribeOpts::new(sub_args.topic.iter().map(|t|
+    let _subres = client.subscribe(SubscribeOpts::new(sub_args.topic.iter().map(|t|
         SubscribeTopic {qos: QoS::AtMostOnce, topic_path: t.clone() }
     ).collect())).await?;
+    // TODO: Check subres.
     loop {
         let r = client.read().await?;
         info!("Read r={:?}", r);
