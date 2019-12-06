@@ -93,9 +93,9 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
 
 fn client_from_args(args: Args) -> Result<Client> {
     Client::builder()
-        .host(args.host)
-        .port(args.port)
-        .username(args.username)
-        .password(args.password)
+        .set_host(args.host)
+        .set_port(args.port)
+        .set_username(args.username)
+        .set_password(args.password)
         .build()
 }

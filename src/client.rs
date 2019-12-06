@@ -271,8 +271,6 @@ pub struct ClientBuilder {
     runtime: TokioRuntime,
 }
 
-
-// TODO: Probably rename setters to set_*.
 impl ClientBuilder {
     pub fn build(&mut self) -> Result<Client> {
         Ok(Client {
@@ -297,37 +295,37 @@ impl ClientBuilder {
     }
 
     /// Required parameter. Set host to connect to.
-    pub fn host(&mut self, host: String) -> &mut Self {
+    pub fn set_host(&mut self, host: String) -> &mut Self {
         self.host = Some(host);
         self
     }
 
     /// Set TCP port to connect to. The default value is 1883.
-    pub fn port(&mut self, port: u16) -> &mut Self {
+    pub fn set_port(&mut self, port: u16) -> &mut Self {
         self.port = Some(port);
         self
     }
 
     /// Set username to authenticate with.
-    pub fn username(&mut self, username: Option<String>) -> &mut Self {
+    pub fn set_username(&mut self, username: Option<String>) -> &mut Self {
         self.username = username;
         self
     }
 
     /// Set password to authenticate with.
-    pub fn password(&mut self, password: Option<String>) -> &mut Self {
+    pub fn set_password(&mut self, password: Option<String>) -> &mut Self {
         self.password = password;
         self
     }
 
     /// Set keep alive time in seconds
-    pub fn keep_alive(&mut self, keep_alive: u16) -> &mut Self {
+    pub fn set_keep_alive(&mut self, keep_alive: u16) -> &mut Self {
         self.keep_alive = Some(keep_alive);
         self
     }
 
-    /// Set
-    pub fn tokio_runtime(&mut self, rt: TokioRuntime) -> &mut Self {
+    /// Set the tokio runtime to spawn background tasks onto
+    pub fn set_tokio_runtime(&mut self, rt: TokioRuntime) -> &mut Self {
         self.runtime = rt;
         self
     }
