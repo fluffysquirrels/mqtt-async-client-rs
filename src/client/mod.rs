@@ -355,45 +355,6 @@ impl IoTask {
                     }
                 },
             };
-            // select! {
-            //     read = read_fut => {
-            //         match read {
-            //             Err(e) => {
-            //                 // TODO: Handle disconnect
-            //                 error!("Failed to read packet: {}", e);
-            //             },
-            //             Ok(p) => {
-            //                 if let Err(e) = self.tx_to_recv.send(p).await {
-            //                     error!("IoTask: Failed to send Packet: {}", e);
-            //                 }
-            //             },
-            //         }
-            //     }
-            //     req = req_fut => {
-            //         match req {
-            //             None => {
-            //                 // Sender closed.
-            //                 if let Err(e) = stream.shutdown(Shutdown::Both) {
-            //                     error!("Error shutting down TcpStream: {}", e);
-            //                 }
-            //                 return;
-            //             },
-            //             Some(req) => {
-            //                 let res = Self::write_packet(&req.packet, &mut stream).await;
-            //                 let res = IoResult { result: res };
-            //                 if let Err(_) = req.tx_result.send(res) {
-            //                     error!("IoTask: Failed to send IoResult");
-            //                 }
-            //             }
-            //         }
-            //     },
-            //     ping = ping_fut => {
-            //         let p = Packet::Pingreq;
-            //         if let Err(e) = Self::write_packet(&p, &mut stream).await {
-            //             error!("IoTask: Failed to write ping: {}", e);
-            //         }
-            //     }
-            // }
         }
     }
 
