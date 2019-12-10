@@ -72,3 +72,26 @@ impl ReadResult {
         &*self.payload
     }
 }
+
+#[derive(Clone, Copy, Debug)]
+pub enum KeepAlive {
+    Disabled,
+    Enabled { secs: u16 },
+}
+
+impl KeepAlive {
+    /// Set keep alive time in seconds.
+    ///
+    /// Panics if `secs` parameter is 0.
+    pub fn from_secs(secs: u16) -> KeepAlive {
+        if secs == 0 {
+            panic!("KeepAlive secs == 0 not permitted");
+        }
+        KeepAlive::Enabled { secs, }
+    }
+
+    /// Disable keep alive functionality.
+    pub fn disabled() -> KeepAlive {
+        KeepAlive::Disabled
+    }
+}
