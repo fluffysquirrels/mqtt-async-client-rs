@@ -325,6 +325,7 @@ impl IoTask {
                      },
                 SelectResult::Req(req) => match req {
                     None => {
+                        // TODO: Test sender closed.
                         // Sender closed.
                         if let Err(e) = stream.shutdown(Shutdown::Both) {
                             error!("IoTask: Error shutting down TcpStream: {}", e);
