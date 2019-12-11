@@ -240,7 +240,7 @@ impl Client {
             None => {
                 // Sender closed.
                 self.state = ConnectState::Disconnected;
-                Err("IoTask sender closed".into())
+                Err(Error::Disconnected)
             }
         }
     }
@@ -271,7 +271,7 @@ impl Client {
     fn check_connected(&mut self) -> Result<&mut ClientConnection> {
         match self.state {
             // TODO: Return something the consumer can interpret and then reconnect.
-            ConnectState::Disconnected => Err("Not connected".into()),
+            ConnectState::Disconnected => Err(Error::Disconnected),
             ConnectState::Connected(ref mut c) => Ok(c),
         }
     }
@@ -319,21 +319,23 @@ impl IoTask {
             };
             match sel_res {
                 SelectResult::Read(read) =>
-                     match read {
-                         Err(e) => {
-                             // TODO: Handle disconnect
-                             error!("IoTask: Failed to read packet: {}", e);
-                         },
-                         Ok(p) => {
-                             if let Packet::Pingresp = p {
-                                 debug!("IoTask: Ignoring Pingresp");
-                                 continue
-                             }
-                             if let Err(e) = self.tx_to_recv.send(p).await {
-                                 error!("IoTask: Failed to send Packet: {}", e);
-                             }
-                         },
-                     },
+                    match read {
+                        Err(Error::Disconnected) => {
+                            return;
+                        }
+                        Err(e) => {
+                            error!("IoTask: Failed to read packet: {}", e);
+                        },
+                        Ok(p) => {
+                            if let Packet::Pingresp = p {
+                                debug!("IoTask: Ignoring Pingresp");
+                                continue
+                            }
+                            if let Err(e) = self.tx_to_recv.send(p).await {
+                                error!("IoTask: Failed to send Packet: {}", e);
+                            }
+                        },
+                    },
                 SelectResult::Req(req) => match req {
                     None => {
                         // TODO: Test sender closed.
@@ -389,13 +391,13 @@ impl IoTask {
             n += nread;
             if nread == 0 {
                 // Socket disconnected
-                return Err("TcpStream disconnected".into());
+                error!("IoTask: Socket disconnected");
+                return Err(Error::Disconnected);
             }
             trace!("Decoding buf={:?}", &buf[0..n]);
             let decoded = mqttrs::decode(&mut buf)?;
             if let Some(p) = decoded {
                 trace!("read_packet p={:#?}", p);
-                // TODO: Handle ping responses.
                 return Ok(p);
             }
         }

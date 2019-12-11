@@ -9,6 +9,7 @@ use mqtt_client::{
         Subscribe as SubscribeOpts,
         SubscribeTopic,
     },
+    Error,
     Result,
 };
 use structopt::StructOpt;
@@ -86,8 +87,11 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
     ).collect())).await?;
     // TODO: Check subres.
     loop {
-        let r = client.read().await?;
+        let r = client.read().await;
         info!("Read r={:?}", r);
+        if let Err(Error::Disconnected) = r {
+            return Err(Error::Disconnected);
+        }
     }
 }
 
