@@ -1,7 +1,10 @@
 #![deny(warnings)]
+
+// The futures_util::select! macro needs a higher recursion_limit
 #![recursion_limit="1024"]
 
 pub mod client;
+mod error;
 mod util;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+pub use error::{Error, Result};

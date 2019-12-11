@@ -17,6 +17,7 @@ pub use mqttrs::{
 
 use bytes::BytesMut;
 use crate::{
+    Error,
     Result,
     util::TokioRuntime,
 };
@@ -167,7 +168,7 @@ impl Client {
         let pid = self.alloc_pid()?;
         // TODO: Support subscribe to qos != AtMostOnce.
         if s.topics().iter().any(|t| t.qos != QoS::AtMostOnce) {
-            return Err("Only Qos::AtMostOnce supported right now".to_owned().into())
+            return Err("Only Qos::AtMostOnce supported right now".into())
         }
         let p = Packet::Subscribe(mqttrs::Subscribe {
             pid: pid,
@@ -259,9 +260,11 @@ impl Client {
             packet: p.clone(),
             tx_result: tx,
         };
-        c.tx_to_send.send(req).await?;
+        c.tx_to_send.send(req).await
+            .map_err(|e| Error::from_std_err(e))?;
         // TODO: Add a timeout?
-        let res = rx.await?;
+        let res = rx.await
+            .map_err(|e| Error::from_std_err(e))?;
         res.result
     }
 
