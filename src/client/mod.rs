@@ -177,7 +177,7 @@ impl Client {
         self.write_packet(&p).await?;
         let r = self.read_packet().await?;
         // TODO: Implement timeout.
-        // TODO: Handle other packets.
+        // TODO: BUG: Handle other packets.
         match r {
             Packet::Suback(mqttrs::Suback {
                 pid: suback_pid,
@@ -215,6 +215,7 @@ impl Client {
         }
     }
 
+    /// Gracefully close the connection to the server.
     pub async fn disconnect(&mut self) -> Result<()> {
         self.check_connected()?;
         let p = Packet::Disconnect;
@@ -270,7 +271,6 @@ impl Client {
 
     fn check_connected(&mut self) -> Result<&mut ClientConnection> {
         match self.state {
-            // TODO: Return something the consumer can interpret and then reconnect.
             ConnectState::Disconnected => Err(Error::Disconnected),
             ConnectState::Connected(ref mut c) => Ok(c),
         }
@@ -278,7 +278,6 @@ impl Client {
 
     fn check_disconnected(&mut self) -> Result<()> {
         match self.state {
-            // TODO: Return something the consumer can interpret and then reconnect.
             ConnectState::Disconnected => Ok(()),
             ConnectState::Connected(_) => Err("Connected already".into()),
         }
@@ -355,12 +354,6 @@ impl IoTask {
                     }
                 },
                 SelectResult::Ping => {
-                    // TODO: If a Client does not receive a
-                    // PINGRESP Packet within a reasonable amount
-                    // of time after it has sent a PINGREQ, it
-                    // SHOULD close the Network Connection to the
-                    // Server.
-
                     debug!("IoTask: Writing Pingreq");
                     last_write_time = Instant::now();
                     let p = Packet::Pingreq;
@@ -382,8 +375,9 @@ impl IoTask {
 
     async fn read_packet(stream: &mut TcpStream) -> Result<Packet> {
         let mut buf = BytesMut::new();
-        // TODO: Test long packets and fix the buffer length.
-        buf.resize(1024, 0u8);
+        // TODO: Test long packets.
+        // Maximum packet length: 2 byte fixed header + 255 bytes remaining length = 257
+        buf.resize(257, 0u8);
         let buflen = buf.len();
         let mut n = 0;
         loop {

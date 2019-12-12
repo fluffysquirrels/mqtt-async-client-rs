@@ -25,8 +25,6 @@ impl Publish {
     pub fn payload(&self) -> &[u8] {
         &*self.payload
     }
-
-    // TODO: More options, especially QoS.
 }
 
 #[derive(Debug)]

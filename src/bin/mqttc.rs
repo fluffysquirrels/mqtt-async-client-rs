@@ -30,8 +30,6 @@ struct Args {
 
     #[structopt(long, default_value="1883")]
     port: u16,
-
-    // TODO: TLS: CA cert to validate server, client cert.
 }
 
 #[derive(Clone, Debug, StructOpt)]
