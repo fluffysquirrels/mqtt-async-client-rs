@@ -196,7 +196,7 @@ impl Client {
         }
     }
 
-    pub async fn read(&mut self) -> Result<ReadResult> {
+    pub async fn read_published(&mut self) -> Result<ReadResult> {
         let r = self.read_packet().await?;
         match r {
             Packet::Publish(p) => {
