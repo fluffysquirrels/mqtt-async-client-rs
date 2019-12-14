@@ -36,7 +36,10 @@ use mqttrs::{
     QosPid,
     self
 };
-use std::net::Shutdown;
+use std::{
+    collections::BTreeMap,
+    net::Shutdown,
+};
 use tokio::{
     io::{
         AsyncReadExt,
@@ -71,31 +74,42 @@ enum ConnectState {
 }
 
 struct ClientConnection {
-    tx_to_send: mpsc::Sender<IoRequest>,
-    rx_to_recv: mpsc::Receiver<Packet>,
+    tx_write_requests: mpsc::Sender<IoRequest>,
+    rx_recv_published: mpsc::Receiver<Packet>,
 }
 
 struct IoTask {
     keep_alive: KeepAlive,
 
     stream: TcpStream,
-    rx_to_send: mpsc::Receiver<IoRequest>,
-    tx_to_recv: mpsc::Sender<Packet>,
+    rx_write_requests: mpsc::Receiver<IoRequest>,
+    tx_recv_published: mpsc::Sender<Packet>,
 
     /// The time the last packet was written to `stream`.
     /// Used to calculate when to send a Pingreq
     last_write_time: Instant,
+
+    pid_response_map: BTreeMap<Pid, IoRequest>,
+    connack_response: Option<IoRequest>,
 }
 
 #[derive(Debug)]
 struct IoRequest {
     packet: Packet,
     tx_result: oneshot::Sender<IoResult>,
+    io_type: IoType,
+}
+
+#[derive(Debug)]
+enum IoType {
+    WriteOnly,
+    WriteAndResponse { response_pid: Pid },
+    WriteConnect,
 }
 
 #[derive(Debug)]
 struct IoResult {
-    result: Result<()>,
+    result: Result<Option<Packet>>,
 }
 
 impl Client {
@@ -107,19 +121,21 @@ impl Client {
         self.check_disconnected()?;
         let stream = TcpStream::connect((&*self.host, self.port))
             .await?;
-        let (tx_to_send, rx_to_send) = mpsc::channel::<IoRequest>(100);
+        let (tx_write_requests, rx_write_requests) = mpsc::channel::<IoRequest>(100);
         // TODO: Change this to allow control messages, e.g. disconnected?
-        let (tx_to_recv, rx_to_recv) = mpsc::channel::<Packet>(100);
+        let (tx_recv_published, rx_recv_published) = mpsc::channel::<Packet>(100);
         self.state = ConnectState::Connected(ClientConnection {
-            tx_to_send,
-            rx_to_recv,
+            tx_write_requests,
+            rx_recv_published,
         });
         let io = IoTask {
             keep_alive: self.keep_alive,
             stream,
-            rx_to_send,
-            tx_to_recv,
+            rx_write_requests,
+            tx_recv_published,
             last_write_time: Instant::now(),
+            pid_response_map: BTreeMap::new(),
+            connack_response: None,
         };
         self.runtime.spawn(io.run());
 
@@ -135,9 +151,8 @@ impl Client {
             username: self.username.clone(),
             password: self.password.clone(),
         });
-        self.write_packet(&conn).await?;
+        let connack = self.write_connect(&conn).await?;
         // TODO: timeout on CONNACK
-        let connack = self.read_packet().await?;
         match connack {
             Packet::Connack(ca) => {
                 if ca.code != ConnectReturnCode::Accepted {
@@ -160,7 +175,7 @@ impl Client {
             topic_name: p.topic().to_owned(),
             payload: p.payload().to_owned(),
         });
-        self.write_packet(&p2).await?;
+        self.write_only_packet(&p2).await?;
         Ok(())
     }
 
@@ -174,8 +189,7 @@ impl Client {
             pid: pid,
             topics: s.topics().to_owned(),
         });
-        self.write_packet(&p).await?;
-        let r = self.read_packet().await?;
+        let r = self.write_response_packet(&p).await?;
         // TODO: Implement timeout.
         // TODO: BUG: Handle other packets.
         match r {
@@ -197,7 +211,15 @@ impl Client {
     }
 
     pub async fn read_published(&mut self) -> Result<ReadResult> {
-        let r = self.read_packet().await?;
+        let c = self.check_connected()?;
+        let r = match c.rx_recv_published.recv().await {
+            Some(r) => r,
+            None => {
+                // Sender closed.
+                self.state = ConnectState::Disconnected;
+                return Err(Error::Disconnected);
+            }
+        };
         match r {
             Packet::Publish(p) => {
                 if p.qospid != QosPid::AtMostOnce {
@@ -219,7 +241,7 @@ impl Client {
     pub async fn disconnect(&mut self) -> Result<()> {
         self.check_connected()?;
         let p = Packet::Disconnect;
-        self.write_packet(&p).await?;
+        self.write_only_packet(&p).await?;
         self.shutdown().await?;
         Ok(())
     }
@@ -234,18 +256,6 @@ impl Client {
         Ok(())
     }
 
-    async fn read_packet(&mut self) -> Result<Packet> {
-        let c = self.check_connected()?;
-        match c.rx_to_recv.recv().await {
-            Some(p) => Ok(p),
-            None => {
-                // Sender closed.
-                self.state = ConnectState::Disconnected;
-                Err(Error::Disconnected)
-            }
-        }
-    }
-
     async fn shutdown(&mut self) -> Result <()> {
         let _c = self.check_connected()?;
         // Setting the state drops the write end of the channel to the IoTask, which
@@ -254,19 +264,52 @@ impl Client {
         Ok(())
     }
 
-    async fn write_packet(&mut self, p: &Packet) -> Result<()> {
+    async fn write_only_packet(&mut self, p: &Packet) -> Result<()> {
         let c = self.check_connected()?;
         let (tx, rx) = oneshot::channel::<IoResult>();
         let req = IoRequest {
             packet: p.clone(),
             tx_result: tx,
+            io_type: IoType::WriteOnly,
         };
-        c.tx_to_send.send(req).await
+        c.tx_write_requests.send(req).await
             .map_err(|e| Error::from_std_err(e))?;
         // TODO: Add a timeout?
         let res = rx.await
             .map_err(|e| Error::from_std_err(e))?;
-        res.result
+        res.result.map(|_v| ())
+    }
+
+    async fn write_response_packet(&mut self, p: &Packet) -> Result<Packet> {
+        let c = self.check_connected()?;
+        let (tx, rx) = oneshot::channel::<IoResult>();
+        let req = IoRequest {
+            packet: p.clone(),
+            tx_result: tx,
+            io_type: IoType::WriteAndResponse { response_pid: packet_pid(p).expect("packet_pid") },
+        };
+        c.tx_write_requests.send(req).await
+            .map_err(|e| Error::from_std_err(e))?;
+        // TODO: Add a timeout?
+        let res = rx.await
+            .map_err(|e| Error::from_std_err(e))?;
+        res.result.map(|v| v.expect("return packet"))
+    }
+
+    async fn write_connect(&mut self, p: &Packet) -> Result<Packet> {
+        let c = self.check_connected()?;
+        let (tx, rx) = oneshot::channel::<IoResult>();
+        let req = IoRequest {
+            packet: p.clone(),
+            tx_result: tx,
+            io_type: IoType::WriteConnect,
+        };
+        c.tx_write_requests.send(req).await
+            .map_err(|e| Error::from_std_err(e))?;
+        // TODO: Add a timeout?
+        let res = rx.await
+            .map_err(|e| Error::from_std_err(e))?;
+        res.result.map(|v| v.expect("return packet"))
     }
 
     fn check_connected(&mut self) -> Result<&mut ClientConnection> {
@@ -284,6 +327,25 @@ impl Client {
     }
 }
 
+fn packet_pid(p: &Packet) -> Option<Pid> {
+    match p {
+        Packet::Connect(_) => None,
+        Packet::Connack(_) => None,
+        Packet::Publish(publish) => publish.qospid.pid(),
+        Packet::Puback(pid) => Some(pid.to_owned()),
+        Packet::Pubrec(pid) => Some(pid.to_owned()),
+        Packet::Pubrel(pid) => Some(pid.to_owned()),
+        Packet::Pubcomp(pid) => Some(pid.to_owned()),
+        Packet::Subscribe(sub) => Some(sub.pid),
+        Packet::Suback(suback) => Some(suback.pid),
+        Packet::Unsubscribe(unsub) => Some(unsub.pid),
+        Packet::Unsuback(pid) => Some(pid.to_owned()),
+        Packet::Pingreq => None,
+        Packet::Pingresp => None,
+        Packet::Disconnect => None,
+    }
+}
+
 enum SelectResult {
     Req(Option<IoRequest>),
     Read(Result<Packet>),
@@ -292,7 +354,7 @@ enum SelectResult {
 
 impl IoTask {
     async fn run(mut self) {
-        let IoTask { mut rx_to_send, mut stream, mut last_write_time, .. } = self;
+        let IoTask { mut rx_write_requests, mut stream, mut last_write_time, .. } = self;
         loop {
             let keepalive_next = match &self.keep_alive {
                 KeepAlive::Disabled => None,
@@ -304,7 +366,7 @@ impl IoTask {
             };
 
             let sel_res = {
-                let mut req_fut = Box::pin(rx_to_send.recv().fuse());
+                let mut req_fut = Box::pin(rx_write_requests.recv().fuse());
                 let mut read_fut = Box::pin(Self::read_packet(&mut stream).fuse());
                 let mut ping_fut = match keepalive_next {
                     Some(t) => Box::pin(delay_until(t).boxed().fuse()),
@@ -326,12 +388,45 @@ impl IoTask {
                             error!("IoTask: Failed to read packet: {}", e);
                         },
                         Ok(p) => {
-                            if let Packet::Pingresp = p {
-                                debug!("IoTask: Ignoring Pingresp");
-                                continue
-                            }
-                            if let Err(e) = self.tx_to_recv.send(p).await {
-                                error!("IoTask: Failed to send Packet: {}", e);
+                            match p {
+                                Packet::Pingresp => {
+                                    debug!("IoTask: Ignoring Pingresp");
+                                    continue
+                                },
+                                Packet::Publish(_) => {
+                                    if let Err(e) = self.tx_recv_published.send(p).await {
+                                        error!("IoTask: Failed to send Packet: {}", e);
+                                    }
+                                },
+                                Packet::Connack(_) => {
+                                    if let Some(ca_req) = self.connack_response {
+                                        trace!("Sending connack response p={:#?}",
+                                               p);
+                                        let res = IoResult { result: Ok(Some(p)) };
+                                        if let Err(e) = ca_req.tx_result.send(res) {
+                                            error!("IoTask: Failed to send IoResult: {:?}", e);
+                                        }
+                                    }
+                                    self.connack_response = None;
+                                }
+                                _ => {
+                                    let pid = packet_pid(&p);
+                                    if let Some(pid) = pid {
+                                        let pid_response = self.pid_response_map.remove(&pid);
+                                        match pid_response {
+                                            None => error!("Unknown PID: {:?}", pid),
+                                            Some(req) => {
+                                                trace!("Sending response PID={:?} p={:#?}",
+                                                       pid, p);
+                                                let res = IoResult { result: Ok(Some(p)) };
+                                                if let Err(e) = req.tx_result.send(res) {
+                                                    error!("IoTask: Failed to send IoResult: {:?}",
+                                                           e);
+                                                }
+                                            },
+                                        }
+                                    }
+                                },
                             }
                         },
                     },
@@ -347,9 +442,20 @@ impl IoTask {
                     Some(req) => {
                         last_write_time = Instant::now();
                         let res = Self::write_packet(&req.packet, &mut stream).await;
-                        let res = IoResult { result: res };
-                        if let Err(_) = req.tx_result.send(res) {
-                            error!("IoTask: Failed to send IoResult");
+                        match req.io_type {
+                            IoType::WriteOnly => {
+                                let res = IoResult { result: res.map(|_| None) };
+                                if let Err(e) = req.tx_result.send(res) {
+                                    error!("IoTask: Failed to send IoResult: {:?}", e);
+                                }
+                            },
+                            IoType::WriteAndResponse { response_pid, } => {
+                                self.pid_response_map.insert(response_pid, req);
+                                // TODO: Timeout.
+                            },
+                            IoType::WriteConnect => {
+                                self.connack_response = Some(req);
+                            },
                         }
                     }
                 },

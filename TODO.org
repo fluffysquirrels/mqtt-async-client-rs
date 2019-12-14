@@ -1,6 +1,6 @@
 * Bugs
 ** Check subscribe result in mqttc command
-** Subscribe doesn't support other packets before Suback
+** Test subscribe receiving other packets before Suback
 ** Track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.
 
@@ -11,9 +11,11 @@
 ** Client connect sends client ID
 ** Client connect sends clean session
 ** Client connect sends last will
-** Timeout on Connack
-** Timeout on Puback
-** Timeout on Suback
+** Timeout on any RPC
+*** Timeout on Connack
+*** Timeout on Puback
+*** Timeout on Suback
+*** Timeout to write a no-response packet
 ** Publish dup flag
 ** Publish retain flag
 ** Unsubscribe
