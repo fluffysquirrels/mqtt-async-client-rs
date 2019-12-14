@@ -265,51 +265,37 @@ impl Client {
     }
 
     async fn write_only_packet(&mut self, p: &Packet) -> Result<()> {
-        let c = self.check_connected()?;
-        let (tx, rx) = oneshot::channel::<IoResult>();
-        let req = IoRequest {
-            packet: p.clone(),
-            tx_result: tx,
-            io_type: IoType::WriteOnly,
-        };
-        c.tx_write_requests.send(req).await
-            .map_err(|e| Error::from_std_err(e))?;
-        // TODO: Add a timeout?
-        let res = rx.await
-            .map_err(|e| Error::from_std_err(e))?;
-        res.result.map(|_v| ())
+        self.write_request(p, IoType::WriteOnly)
+            .await.map(|_v| ())
     }
 
     async fn write_response_packet(&mut self, p: &Packet) -> Result<Packet> {
-        let c = self.check_connected()?;
-        let (tx, rx) = oneshot::channel::<IoResult>();
-        let req = IoRequest {
-            packet: p.clone(),
-            tx_result: tx,
-            io_type: IoType::WriteAndResponse { response_pid: packet_pid(p).expect("packet_pid") },
+        let io_type = IoType::WriteAndResponse {
+            response_pid: packet_pid(p).expect("packet_pid")
         };
-        c.tx_write_requests.send(req).await
-            .map_err(|e| Error::from_std_err(e))?;
-        // TODO: Add a timeout?
-        let res = rx.await
-            .map_err(|e| Error::from_std_err(e))?;
-        res.result.map(|v| v.expect("return packet"))
+        self.write_request(p, io_type)
+            .await.map(|v| v.expect("return packet"))
     }
 
     async fn write_connect(&mut self, p: &Packet) -> Result<Packet> {
+        self.write_request(p, IoType::WriteConnect)
+            .await.map(|v| v.expect("return packet"))
+    }
+
+    async fn write_request(&mut self, p: &Packet, io_type: IoType) -> Result<Option<Packet>> {
         let c = self.check_connected()?;
         let (tx, rx) = oneshot::channel::<IoResult>();
         let req = IoRequest {
             packet: p.clone(),
             tx_result: tx,
-            io_type: IoType::WriteConnect,
+            io_type: io_type,
         };
         c.tx_write_requests.send(req).await
             .map_err(|e| Error::from_std_err(e))?;
         // TODO: Add a timeout?
         let res = rx.await
             .map_err(|e| Error::from_std_err(e))?;
-        res.result.map(|v| v.expect("return packet"))
+        res.result
     }
 
     fn check_connected(&mut self) -> Result<&mut ClientConnection> {
