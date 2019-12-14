@@ -156,6 +156,7 @@ impl Client {
         match connack {
             Packet::Connack(ca) => {
                 if ca.code != ConnectReturnCode::Accepted {
+                    let _ = self.shutdown().await;
                     return Err(format!("Bad connect return code: {:?}", ca.code).into());
                 }
             },
