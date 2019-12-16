@@ -69,7 +69,7 @@ pub struct Client {
     runtime: TokioRuntime,
 
     state: ConnectState,
-    free_pids: FreePidList,
+    free_write_pids: FreePidList,
 }
 
 enum ConnectState {
@@ -185,7 +185,7 @@ impl Client {
     }
 
     pub async fn subscribe(&mut self, s: Subscribe) -> Result<SubscribeResult> {
-        let pid = self.alloc_pid()?;
+        let pid = self.alloc_write_pid()?;
         // TODO: Support subscribe to qos != AtMostOnce.
         if s.topics().iter().any(|t| t.qos != QoS::AtMostOnce) {
             return Err("Only Qos::AtMostOnce supported right now".into())
@@ -202,7 +202,7 @@ impl Client {
                 pid: suback_pid,
                 return_codes: rcs,
             }) if suback_pid == pid => {
-                self.free_pid(pid)?;
+                self.free_write_pid(pid)?;
                 Ok(SubscribeResult {
                     return_codes: rcs
                 })
@@ -251,15 +251,15 @@ impl Client {
         Ok(())
     }
 
-    fn alloc_pid(&mut self) -> Result<Pid> {
-        match self.free_pids.alloc() {
+    fn alloc_write_pid(&mut self) -> Result<Pid> {
+        match self.free_write_pids.alloc() {
             Some(pid) => Ok(Pid::try_from(pid).expect("Non-zero Pid")),
             None => Err(Error::from("No free Pids")),
         }
     }
 
-    fn free_pid(&mut self, p: Pid) -> Result<()> {
-        match self.free_pids.free(p.get()) {
+    fn free_write_pid(&mut self, p: Pid) -> Result<()> {
+        match self.free_write_pids.free(p.get()) {
             true => Err(Error::from("Pid was already free")),
             false => Ok(())
         }

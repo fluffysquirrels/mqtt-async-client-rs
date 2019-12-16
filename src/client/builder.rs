@@ -41,7 +41,7 @@ impl ClientBuilder {
             runtime: self.runtime.clone(),
 
             state: ConnectState::Disconnected,
-            free_pids: FreePidList::new(),
+            free_write_pids: FreePidList::new(),
         })
     }
 
