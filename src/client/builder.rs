@@ -5,7 +5,10 @@ use crate::{
         ConnectState,
     },
     Result,
-    util::TokioRuntime,
+    util::{
+        FreePidList,
+        TokioRuntime,
+    }
 };
 
 #[derive(Default)]
@@ -38,6 +41,7 @@ impl ClientBuilder {
             runtime: self.runtime.clone(),
 
             state: ConnectState::Disconnected,
+            free_pids: FreePidList::new(),
         })
     }
 

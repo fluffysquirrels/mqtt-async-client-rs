@@ -5,6 +5,6 @@
 
 pub mod client;
 mod error;
-mod util;
+pub mod util;
 
 pub use error::{Error, Result};

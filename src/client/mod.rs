@@ -19,7 +19,10 @@ use bytes::BytesMut;
 use crate::{
     Error,
     Result,
-    util::TokioRuntime,
+    util::{
+        FreePidList,
+        TokioRuntime,
+    }
 };
 use futures_util::{
     future::{
@@ -66,6 +69,7 @@ pub struct Client {
     runtime: TokioRuntime,
 
     state: ConnectState,
+    free_pids: FreePidList,
 }
 
 enum ConnectState {
@@ -248,13 +252,17 @@ impl Client {
     }
 
     fn alloc_pid(&mut self) -> Result<Pid> {
-        // TODO: Track used Pid's
-        Ok(Pid::try_from(1).expect("Non-zero Pid"))
+        match self.free_pids.alloc() {
+            Some(pid) => Ok(Pid::try_from(pid).expect("Non-zero Pid")),
+            None => Err(Error::from("No free Pids")),
+        }
     }
 
-    fn free_pid(&mut self, _p: Pid) -> Result<()> {
-        // TODO: Track used Pid's
-        Ok(())
+    fn free_pid(&mut self, p: Pid) -> Result<()> {
+        match self.free_pids.free(p.get()) {
+            true => Err(Error::from("Pid was already free")),
+            false => Ok(())
+        }
     }
 
     async fn shutdown(&mut self) -> Result <()> {

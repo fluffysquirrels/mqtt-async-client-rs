@@ -13,3 +13,6 @@ log = "0.4.8"
 mqttrs = "0.2.0"
 structopt = "0.3.5"
 tokio = { version = "0.2.2", features = ["dns", "io-util", "macros", "rt-core", "sync", "tcp", "time"] }
+
+[dev-dependencies]
+maplit = "1.0.2"
