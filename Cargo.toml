@@ -3,6 +3,8 @@ name = "mqtt-client"
 version = "0.1.0"
 authors = ["Alex Helfet <alex.helfet@gmail.com>"]
 edition = "2018"
+license-file = "LICENSE"
+readme = "README.md"
 
 [dependencies]
 bytes = "0.4.0"
