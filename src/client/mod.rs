@@ -173,14 +173,32 @@ impl Client {
     }
 
     pub async fn publish(&mut self, p: Publish) -> Result<()> {
+        let qos = p.qos();
+        if qos == QoS::ExactlyOnce {
+            return Err("QoS::ExactlyOnce is not supported".into());
+        }
         let p2 = Packet::Publish(mqttrs::Publish {
             dup: false, // TODO.
-            qospid: QosPid::AtMostOnce, // TODO: the other QoS options
+            qospid: match qos {
+                QoS::AtMostOnce => QosPid::AtMostOnce,
+                QoS::AtLeastOnce => QosPid::AtLeastOnce(self.alloc_write_pid()?),
+                QoS::ExactlyOnce => panic!("Not reached"),
+            },
             retain: false, // TODO
             topic_name: p.topic().to_owned(),
             payload: p.payload().to_owned(),
         });
-        self.write_only_packet(&p2).await?;
+        match qos {
+            QoS::AtMostOnce => self.write_only_packet(&p2).await?,
+            QoS::AtLeastOnce => {
+                let resp = self.write_response_packet(&p2).await?;
+                match resp {
+                    Packet::Puback(pid) => self.free_write_pid(pid)?,
+                    _ => error!("Bad packet response for publish: {:#?}", resp),
+                }
+            },
+            QoS::ExactlyOnce => panic!("Not reached"),
+        };
         Ok(())
     }
 
@@ -437,6 +455,9 @@ impl IoTask {
                     Some(req) => {
                         last_write_time = Instant::now();
                         let res = Self::write_packet(&req.packet, &mut stream).await;
+                        if let Err(ref e) = res {
+                            error!("IoTask: Error writing packet: {:?}", e);
+                        }
                         match req.io_type {
                             IoType::WriteOnly => {
                                 let res = IoResult { result: res.map(|_| None) };
@@ -468,8 +489,11 @@ impl IoTask {
 
     async fn write_packet(p: &Packet, stream: &mut TcpStream) -> Result<()> {
         trace!("write_packet p={:#?}", p);
-        let mut bytes = BytesMut::new();
+        // Maximum packet length: 2 byte fixed header + 255 bytes remaining length = 257
+        let mut bytes = BytesMut::with_capacity(257);
+        // bytes.resize(257, 0u8);
         mqttrs::encode(&p, &mut bytes)?;
+        trace!("write_packet bytes p={:?}", &*bytes);
         stream.write_all(&*bytes).await?;
         Ok(())
     }

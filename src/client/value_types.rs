@@ -8,6 +8,7 @@ pub use mqttrs::{
 pub struct Publish {
     topic: String,
     payload: Vec<u8>,
+    qos: QoS,
 }
 
 impl Publish {
@@ -15,6 +16,7 @@ impl Publish {
         Publish {
             topic,
             payload,
+            qos: QoS::AtMostOnce,
         }
     }
 
@@ -24,6 +26,16 @@ impl Publish {
 
     pub fn payload(&self) -> &[u8] {
         &*self.payload
+    }
+
+    pub fn qos(&self) -> QoS {
+        self.qos
+    }
+
+    /// Set MQTT quality of service
+    pub fn set_qos(&mut self, qos: QoS) -> &mut Self {
+        self.qos = qos;
+        self
     }
 }
 

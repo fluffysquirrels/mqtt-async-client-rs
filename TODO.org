@@ -1,8 +1,9 @@
 * Bugs
 ** Check subscribe result in mqttc command
 ** Test subscribe receiving other packets before Suback
-** Track used Pid's, only re-use Pid's safely
+** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.
+** Back pressure on write PID allocation?
 
 * Enhancements
 ** Publish QoS level 1 (at least once)
@@ -29,3 +30,5 @@
 ** High availablity: fail over to a list of servers on failure to connect
 ** MQTT over WebSocket
 ** Automatic reconnect
+** Publish QoS level 2 (exactly once)
+** Subscribe QoS level 2 (exactly once)

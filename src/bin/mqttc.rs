@@ -42,8 +42,12 @@ enum Command {
 struct Publish {
     topic: String,
     message: String,
+
+    #[structopt(long,
+                possible_values(&["0", "1", "2"]),
+                default_value("0"))]
+    qos: u8,
     // TODO: Message retention.
-    // TODO: QoS.
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -70,8 +74,14 @@ async fn main() {
 async fn publish(pub_args: Publish, args: Args) -> Result<()> {
     let mut client = client_from_args(args)?;
     client.connect().await?;
-    client.publish(PublishOpts::new(pub_args.topic.clone(), pub_args.message.as_bytes().to_vec()))
-        .await?;
+    let mut p = PublishOpts::new(pub_args.topic.clone(), pub_args.message.as_bytes().to_vec());
+    p.set_qos(match pub_args.qos {
+        0 => QoS::AtMostOnce,
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => panic!("Not reached"),
+    });
+    client.publish(p).await?;
     info!("Published topic={}, message={}", pub_args.topic, pub_args.message);
     client.disconnect().await?;
     Ok(())
