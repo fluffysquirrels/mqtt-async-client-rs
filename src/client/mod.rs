@@ -12,6 +12,7 @@ pub use builder::ClientBuilder;
 
 pub use mqttrs::{
     QoS,
+    SubscribeReturnCodes,
     SubscribeTopic,
 };
 

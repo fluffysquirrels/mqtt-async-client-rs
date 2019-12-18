@@ -1,5 +1,4 @@
 * Bugs
-** Check subscribe result in mqttc command
 ** Test subscribe receiving other packets before Suback
 ** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.

@@ -7,6 +7,7 @@ use mqtt_client::{
         Publish as PublishOpts,
         QoS,
         Subscribe as SubscribeOpts,
+        SubscribeReturnCodes,
         SubscribeTopic,
     },
     Error,
@@ -90,9 +91,14 @@ async fn publish(pub_args: Publish, args: Args) -> Result<()> {
 async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
     let mut client = client_from_args(args)?;
     client.connect().await?;
-    let _subres = client.subscribe(SubscribeOpts::new(sub_args.topic.iter().map(|t|
+    let subopts = SubscribeOpts::new(sub_args.topic.iter().map(|t|
         SubscribeTopic {qos: QoS::AtMostOnce, topic_path: t.clone() }
-    ).collect())).await?;
+    ).collect());
+    let subres = client.subscribe(subopts).await?;
+    let any_failed = subres.return_codes().iter().any(|rc| *rc == SubscribeReturnCodes::Failure);
+    if any_failed {
+        return Err(format!("Some subscribes failed: {:#?}", subres.return_codes()).into());
+    }
     // TODO: Check subres.
     loop {
         let r = client.read_published().await;
