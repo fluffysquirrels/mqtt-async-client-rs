@@ -10,7 +10,6 @@
 *** Retry when no ack.
 ** Make packets in flight configurable
 ** Subscribe QoS level 1 (at least once)
-** Client connect sends client ID
 ** Client connect sends clean session
 ** Client connect sends last will
 ** Client connect sends username and password

@@ -19,6 +19,7 @@ pub struct ClientBuilder {
     password: Option<Vec<u8>>,
     keep_alive: Option<KeepAlive>,
     runtime: TokioRuntime,
+    client_id: Option<String>,
 }
 
 impl ClientBuilder {
@@ -39,6 +40,7 @@ impl ClientBuilder {
                 None => KeepAlive::from_secs(30),
             },
             runtime: self.runtime.clone(),
+            client_id: self.client_id.clone(),
 
             state: ConnectState::Disconnected,
             free_write_pids: FreePidList::new(),
@@ -91,6 +93,12 @@ impl ClientBuilder {
     /// The default is to use the default tokio runtime, i.e. `tokio::spawn()`.
     pub fn set_tokio_runtime(&mut self, rt: TokioRuntime) -> &mut Self {
         self.runtime = rt;
+        self
+    }
+
+    /// Set the ClientId to connect with.
+    pub fn set_client_id(&mut self, client_id: Option<String>) -> &mut Self {
+        self.client_id = client_id;
         self
     }
 }

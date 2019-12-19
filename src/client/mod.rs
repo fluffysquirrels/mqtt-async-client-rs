@@ -68,6 +68,7 @@ pub struct Client {
     password: Option<Vec<u8>>,
     keep_alive: KeepAlive,
     runtime: TokioRuntime,
+    client_id: Option<String>,
 
     state: ConnectState,
     free_write_pids: FreePidList,
@@ -150,7 +151,10 @@ impl Client {
                 KeepAlive::Disabled => 0,
                 KeepAlive::Enabled { secs } => secs,
             },
-            client_id: "".to_owned(), // TODO
+            client_id: match &self.client_id {
+                None => "".to_owned(),
+                Some(cid) => cid.to_owned(),
+            },
             clean_session: true, // TODO
             last_will: None, // TODO
             username: self.username.clone(),

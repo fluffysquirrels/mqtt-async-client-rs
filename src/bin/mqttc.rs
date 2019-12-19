@@ -16,6 +16,7 @@ use mqtt_client::{
 use structopt::StructOpt;
 
 #[derive(Clone, Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 struct Args {
     #[structopt(subcommand)]
     cmd: Command,
@@ -31,6 +32,9 @@ struct Args {
 
     #[structopt(long, default_value="1883")]
     port: u16,
+
+    #[structopt(long)]
+    client_id: Option<String>,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -115,5 +119,6 @@ fn client_from_args(args: Args) -> Result<Client> {
         .set_port(args.port)
         .set_username(args.username)
         .set_password(args.password.map(|s| s.as_bytes().to_vec()))
+        .set_client_id(args.client_id)
         .build()
 }
