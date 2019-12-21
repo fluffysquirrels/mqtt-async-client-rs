@@ -61,6 +61,9 @@ use tokio::{
     },
 };
 
+/// An arbitrary value that should perhaps be configurable.
+const MAX_PACKET_SIZE: usize = 65536;
+
 pub struct Client {
     host: String,
     port: u16,
@@ -500,9 +503,8 @@ impl IoTask {
 
     async fn write_packet(p: &Packet, stream: &mut TcpStream) -> Result<()> {
         trace!("write_packet p={:#?}", p);
-        // Maximum packet length: 2 byte fixed header + 255 bytes remaining length = 257
-        let mut bytes = BytesMut::with_capacity(257);
-        // bytes.resize(257, 0u8);
+        // TODO: Test long packets.
+        let mut bytes = BytesMut::with_capacity(MAX_PACKET_SIZE);
         mqttrs::encode(&p, &mut bytes)?;
         trace!("write_packet bytes p={:?}", &*bytes);
         stream.write_all(&*bytes).await?;
@@ -512,8 +514,7 @@ impl IoTask {
     async fn read_packet(stream: &mut TcpStream) -> Result<Packet> {
         let mut buf = BytesMut::new();
         // TODO: Test long packets.
-        // Maximum packet length: 2 byte fixed header + 255 bytes remaining length = 257
-        buf.resize(257, 0u8);
+        buf.resize(MAX_PACKET_SIZE, 0u8);
         let buflen = buf.len();
         let mut n = 0;
         loop {

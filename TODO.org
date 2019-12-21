@@ -6,6 +6,7 @@
 
 * Enhancements
 ** Does the current design support concurrency? If not, maybe change it.
+** Make max packet size configurable?
 ** Publish QoS level 1 (at least once)
 *** Retry when no ack.
 ** Make packets in flight configurable
