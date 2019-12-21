@@ -72,6 +72,7 @@ pub struct Client {
     keep_alive: KeepAlive,
     runtime: TokioRuntime,
     client_id: Option<String>,
+    packet_buffer_len: usize,
 
     state: ConnectState,
     free_write_pids: FreePidList,
@@ -130,9 +131,11 @@ impl Client {
         self.check_disconnected()?;
         let stream = TcpStream::connect((&*self.host, self.port))
             .await?;
-        let (tx_write_requests, rx_write_requests) = mpsc::channel::<IoRequest>(100);
+        let (tx_write_requests, rx_write_requests) =
+            mpsc::channel::<IoRequest>(self.packet_buffer_len);
         // TODO: Change this to allow control messages, e.g. disconnected?
-        let (tx_recv_published, rx_recv_published) = mpsc::channel::<Packet>(100);
+        let (tx_recv_published, rx_recv_published) =
+            mpsc::channel::<Packet>(self.packet_buffer_len);
         self.state = ConnectState::Connected(ClientConnection {
             tx_write_requests,
             rx_recv_published,

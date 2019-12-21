@@ -20,6 +20,7 @@ pub struct ClientBuilder {
     keep_alive: Option<KeepAlive>,
     runtime: TokioRuntime,
     client_id: Option<String>,
+    packet_buffer_len: Option<usize>,
 }
 
 impl ClientBuilder {
@@ -29,18 +30,13 @@ impl ClientBuilder {
                 Some(ref h) => h.clone(),
                 None => return Err("You must set a host to build a Client".into())
             },
-            port: match self.port {
-                Some(p) => p,
-                None => 1883,
-            },
+            port: self.port.unwrap_or(1883),
             username: self.username.clone(),
             password: self.password.clone(),
-            keep_alive: match self.keep_alive {
-                Some(k) => k,
-                None => KeepAlive::from_secs(30),
-            },
+            keep_alive: self.keep_alive.unwrap_or(KeepAlive::from_secs(30)),
             runtime: self.runtime.clone(),
             client_id: self.client_id.clone(),
+            packet_buffer_len: self.packet_buffer_len.unwrap_or(100),
 
             state: ConnectState::Disconnected,
             free_write_pids: FreePidList::new(),
@@ -99,6 +95,12 @@ impl ClientBuilder {
     /// Set the ClientId to connect with.
     pub fn set_client_id(&mut self, client_id: Option<String>) -> &mut Self {
         self.client_id = client_id;
+        self
+    }
+
+    /// Set the inbound and outbound packet buffer length.
+    pub fn set_packet_buffer_len(&mut self, packet_buffer_len: usize) -> &mut Self {
+        self.packet_buffer_len = Some(packet_buffer_len);
         self
     }
 }
