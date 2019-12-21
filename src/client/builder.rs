@@ -21,6 +21,7 @@ pub struct ClientBuilder {
     runtime: TokioRuntime,
     client_id: Option<String>,
     packet_buffer_len: Option<usize>,
+    max_packet_len: Option<usize>,
 }
 
 impl ClientBuilder {
@@ -37,6 +38,7 @@ impl ClientBuilder {
             runtime: self.runtime.clone(),
             client_id: self.client_id.clone(),
             packet_buffer_len: self.packet_buffer_len.unwrap_or(100),
+            max_packet_len: self.max_packet_len.unwrap_or(64 * 1024),
 
             state: ConnectState::Disconnected,
             free_write_pids: FreePidList::new(),
@@ -101,6 +103,12 @@ impl ClientBuilder {
     /// Set the inbound and outbound packet buffer length.
     pub fn set_packet_buffer_len(&mut self, packet_buffer_len: usize) -> &mut Self {
         self.packet_buffer_len = Some(packet_buffer_len);
+        self
+    }
+
+    /// Set the maximum packet length.
+    pub fn set_max_packet_len(&mut self, max_packet_len: usize) -> &mut Self {
+        self.max_packet_len = Some(max_packet_len);
         self
     }
 }

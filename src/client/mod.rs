@@ -61,9 +61,6 @@ use tokio::{
     },
 };
 
-/// An arbitrary value that should perhaps be configurable.
-const MAX_PACKET_SIZE: usize = 65536;
-
 pub struct Client {
     host: String,
     port: u16,
@@ -73,6 +70,7 @@ pub struct Client {
     runtime: TokioRuntime,
     client_id: Option<String>,
     packet_buffer_len: usize,
+    max_packet_len: usize,
 
     state: ConnectState,
     free_write_pids: FreePidList,
@@ -90,6 +88,7 @@ struct ClientConnection {
 
 struct IoTask {
     keep_alive: KeepAlive,
+    max_packet_len: usize,
 
     stream: TcpStream,
     rx_write_requests: mpsc::Receiver<IoRequest>,
@@ -142,6 +141,7 @@ impl Client {
         });
         let io = IoTask {
             keep_alive: self.keep_alive,
+            max_packet_len: self.max_packet_len,
             stream,
             rx_write_requests,
             tx_recv_published,
@@ -391,7 +391,8 @@ impl IoTask {
 
             let sel_res = {
                 let mut req_fut = Box::pin(rx_write_requests.recv().fuse());
-                let mut read_fut = Box::pin(Self::read_packet(&mut stream).fuse());
+                let mut read_fut = Box::pin(
+                    Self::read_packet(&mut stream, self.max_packet_len).fuse());
                 let mut ping_fut = match keepalive_next {
                     Some(t) => Box::pin(delay_until(t).boxed().fuse()),
                     None => Box::pin(pending().boxed().fuse()),
@@ -465,7 +466,8 @@ impl IoTask {
                     },
                     Some(req) => {
                         last_write_time = Instant::now();
-                        let res = Self::write_packet(&req.packet, &mut stream).await;
+                        let res = Self::write_packet(&req.packet, &mut stream,
+                                                     self.max_packet_len).await;
                         if let Err(ref e) = res {
                             error!("IoTask: Error writing packet: {:?}", e);
                             let res = IoResult { result: res.map(|_| None) };
@@ -496,7 +498,8 @@ impl IoTask {
                     debug!("IoTask: Writing Pingreq");
                     last_write_time = Instant::now();
                     let p = Packet::Pingreq;
-                    if let Err(e) = Self::write_packet(&p, &mut stream).await {
+                    if let Err(e) = Self::write_packet(&p, &mut stream,
+                                                       self.max_packet_len).await {
                         error!("IoTask: Failed to write ping: {}", e);
                     }
                 },
@@ -504,20 +507,21 @@ impl IoTask {
         }
     }
 
-    async fn write_packet(p: &Packet, stream: &mut TcpStream) -> Result<()> {
+    async fn write_packet(p: &Packet, stream: &mut TcpStream,
+                          max_packet_len: usize) -> Result<()> {
         trace!("write_packet p={:#?}", p);
         // TODO: Test long packets.
-        let mut bytes = BytesMut::with_capacity(MAX_PACKET_SIZE);
+        let mut bytes = BytesMut::with_capacity(max_packet_len);
         mqttrs::encode(&p, &mut bytes)?;
         trace!("write_packet bytes p={:?}", &*bytes);
         stream.write_all(&*bytes).await?;
         Ok(())
     }
 
-    async fn read_packet(stream: &mut TcpStream) -> Result<Packet> {
+    async fn read_packet(stream: &mut TcpStream, max_packet_len: usize) -> Result<Packet> {
         let mut buf = BytesMut::new();
         // TODO: Test long packets.
-        buf.resize(MAX_PACKET_SIZE, 0u8);
+        buf.resize(max_packet_len, 0u8);
         let buflen = buf.len();
         let mut n = 0;
         loop {
