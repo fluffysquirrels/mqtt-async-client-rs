@@ -462,21 +462,27 @@ impl IoTask {
                         let res = Self::write_packet(&req.packet, &mut stream).await;
                         if let Err(ref e) = res {
                             error!("IoTask: Error writing packet: {:?}", e);
-                        }
-                        match req.io_type {
-                            IoType::WriteOnly => {
-                                let res = IoResult { result: res.map(|_| None) };
-                                if let Err(e) = req.tx_result.send(res) {
-                                    error!("IoTask: Failed to send IoResult: {:?}", e);
-                                }
-                            },
-                            IoType::WriteAndResponse { response_pid, } => {
-                                self.pid_response_map.insert(response_pid, req);
-                                // TODO: Timeout.
-                            },
-                            IoType::WriteConnect => {
-                                self.connack_response = Some(req);
-                            },
+                            let res = IoResult { result: res.map(|_| None) };
+                            if let Err(e) = req.tx_result.send(res) {
+                                error!("IoTask: Failed to send IoResult: {:?}", e);
+                            }
+                            continue;
+                        } else {
+                            match req.io_type {
+                                IoType::WriteOnly => {
+                                    let res = IoResult { result: res.map(|_| None) };
+                                    if let Err(e) = req.tx_result.send(res) {
+                                        error!("IoTask: Failed to send IoResult: {:?}", e);
+                                    }
+                                },
+                                IoType::WriteAndResponse { response_pid, } => {
+                                    self.pid_response_map.insert(response_pid, req);
+                                    // TODO: Timeout.
+                                },
+                                IoType::WriteConnect => {
+                                    self.connack_response = Some(req);
+                                },
+                            }
                         }
                     }
                 },

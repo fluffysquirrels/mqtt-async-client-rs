@@ -1,18 +1,18 @@
 * Bugs
-** Return write_packet errors from IoTask no matter the IoType.
 ** Test subscribe receiving other packets before Suback
 ** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.
 ** Back pressure on write PID allocation?
 
 * Enhancements
+** Does the current design support concurrency? If not, maybe change it.
 ** Publish QoS level 1 (at least once)
 *** Retry when no ack.
 ** Make packets in flight configurable
 ** Subscribe QoS level 1 (at least once)
 ** Client connect sends clean session
 ** Client connect sends last will
-** Client connect sends username and password
+** Test client connect sends username and password
 ** Timeout on any RPC
 *** Timeout on Connack
 *** Timeout on Puback
