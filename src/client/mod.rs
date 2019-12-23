@@ -41,6 +41,7 @@ use mqttrs::{
     self
 };
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     net::Shutdown,
 };
@@ -73,7 +74,7 @@ pub struct Client {
     max_packet_len: usize,
 
     state: ConnectState,
-    free_write_pids: FreePidList,
+    free_write_pids: RefCell<FreePidList>,
 }
 
 enum ConnectState {
@@ -183,7 +184,7 @@ impl Client {
         Ok(())
     }
 
-    pub async fn publish(&mut self, p: Publish) -> Result<()> {
+    pub async fn publish(&self, p: &Publish) -> Result<()> {
         let qos = p.qos();
         if qos == QoS::ExactlyOnce {
             return Err("QoS::ExactlyOnce is not supported".into());
@@ -245,7 +246,7 @@ impl Client {
     }
 
     pub async fn read_published(&mut self) -> Result<ReadResult> {
-        let c = self.check_connected()?;
+        let c = self.check_connected_mut()?;
         let r = match c.rx_recv_published.recv().await {
             Some(r) => r,
             None => {
@@ -280,15 +281,15 @@ impl Client {
         Ok(())
     }
 
-    fn alloc_write_pid(&mut self) -> Result<Pid> {
-        match self.free_write_pids.alloc() {
+    fn alloc_write_pid(&self) -> Result<Pid> {
+        match self.free_write_pids.borrow_mut().alloc() {
             Some(pid) => Ok(Pid::try_from(pid).expect("Non-zero Pid")),
             None => Err(Error::from("No free Pids")),
         }
     }
 
-    fn free_write_pid(&mut self, p: Pid) -> Result<()> {
-        match self.free_write_pids.free(p.get()) {
+    fn free_write_pid(&self, p: Pid) -> Result<()> {
+        match self.free_write_pids.borrow_mut().free(p.get()) {
             true => Err(Error::from("Pid was already free")),
             false => Ok(())
         }
@@ -302,12 +303,12 @@ impl Client {
         Ok(())
     }
 
-    async fn write_only_packet(&mut self, p: &Packet) -> Result<()> {
+    async fn write_only_packet(&self, p: &Packet) -> Result<()> {
         self.write_request(p, IoType::WriteOnly)
             .await.map(|_v| ())
     }
 
-    async fn write_response_packet(&mut self, p: &Packet) -> Result<Packet> {
+    async fn write_response_packet(&self, p: &Packet) -> Result<Packet> {
         let io_type = IoType::WriteAndResponse {
             response_pid: packet_pid(p).expect("packet_pid")
         };
@@ -315,12 +316,12 @@ impl Client {
             .await.map(|v| v.expect("return packet"))
     }
 
-    async fn write_connect(&mut self, p: &Packet) -> Result<Packet> {
+    async fn write_connect(&self, p: &Packet) -> Result<Packet> {
         self.write_request(p, IoType::WriteConnect)
             .await.map(|v| v.expect("return packet"))
     }
 
-    async fn write_request(&mut self, p: &Packet, io_type: IoType) -> Result<Option<Packet>> {
+    async fn write_request(&self, p: &Packet, io_type: IoType) -> Result<Option<Packet>> {
         let c = self.check_connected()?;
         let (tx, rx) = oneshot::channel::<IoResult>();
         let req = IoRequest {
@@ -328,7 +329,7 @@ impl Client {
             tx_result: tx,
             io_type: io_type,
         };
-        c.tx_write_requests.send(req).await
+        c.tx_write_requests.clone().send(req).await
             .map_err(|e| Error::from_std_err(e))?;
         // TODO: Add a timeout?
         let res = rx.await
@@ -336,14 +337,21 @@ impl Client {
         res.result
     }
 
-    fn check_connected(&mut self) -> Result<&mut ClientConnection> {
+    fn check_connected_mut(&mut self) -> Result<&mut ClientConnection> {
         match self.state {
             ConnectState::Disconnected => Err(Error::Disconnected),
             ConnectState::Connected(ref mut c) => Ok(c),
         }
     }
 
-    fn check_disconnected(&mut self) -> Result<()> {
+    fn check_connected(&self) -> Result<&ClientConnection> {
+        match self.state {
+            ConnectState::Disconnected => Err(Error::Disconnected),
+            ConnectState::Connected(ref c) => Ok(c),
+        }
+    }
+
+    fn check_disconnected(&self) -> Result<()> {
         match self.state {
             ConnectState::Disconnected => Ok(()),
             ConnectState::Connected(_) => Err("Connected already".into()),

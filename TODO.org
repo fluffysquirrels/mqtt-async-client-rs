@@ -1,10 +1,14 @@
+* WIP
+** Test multiple simultaneous publish
+
 * Bugs
+** Fix reading multiple packets in the same buffer
+
+* Enhancements
 ** Test subscribe receiving other packets before Suback
 ** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.
 ** Back pressure on write PID allocation?
-
-* Enhancements
 ** Does the current design support concurrency? If not, maybe change it.
 ** Publish QoS level 1 (at least once)
 *** Retry when no ack.

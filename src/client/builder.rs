@@ -10,6 +10,7 @@ use crate::{
         TokioRuntime,
     }
 };
+use std::cell::RefCell;
 
 #[derive(Default)]
 pub struct ClientBuilder {
@@ -41,7 +42,7 @@ impl ClientBuilder {
             max_packet_len: self.max_packet_len.unwrap_or(64 * 1024),
 
             state: ConnectState::Disconnected,
-            free_write_pids: FreePidList::new(),
+            free_write_pids: RefCell::new(FreePidList::new()),
         })
     }
 
@@ -101,12 +102,16 @@ impl ClientBuilder {
     }
 
     /// Set the inbound and outbound packet buffer length.
+    ///
+    /// The default is 100.
     pub fn set_packet_buffer_len(&mut self, packet_buffer_len: usize) -> &mut Self {
         self.packet_buffer_len = Some(packet_buffer_len);
         self
     }
 
     /// Set the maximum packet length.
+    ///
+    /// The default is 64 * 1024 bytes.
     pub fn set_max_packet_len(&mut self, max_packet_len: usize) -> &mut Self {
         self.max_packet_len = Some(max_packet_len);
         self

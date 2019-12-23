@@ -1,5 +1,11 @@
 #![deny(warnings)]
 
+use futures_util::{
+    stream::{
+        futures_unordered::FuturesUnordered,
+        StreamExt,
+    },
+};
 use log::{debug, error, info};
 use mqtt_client::{
     client::{
@@ -52,6 +58,10 @@ struct Publish {
                 possible_values(&["0", "1", "2"]),
                 default_value("0"))]
     qos: u8,
+
+    #[structopt(long,
+                default_value("1"))]
+    repeats: u16,
     // TODO: Message retention.
 }
 
@@ -86,7 +96,11 @@ async fn publish(pub_args: Publish, args: Args) -> Result<()> {
         2 => QoS::ExactlyOnce,
         _ => panic!("Not reached"),
     });
-    client.publish(p).await?;
+    let futs = (0..(pub_args.repeats)).map(|_| {
+        client.publish(&p)
+    });
+    let futs: FuturesUnordered<_> = futs.collect();
+    futs.collect::<Vec<_>>().await;
     info!("Published topic={}, message={}", pub_args.topic, pub_args.message);
     client.disconnect().await?;
     Ok(())
