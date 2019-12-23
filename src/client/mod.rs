@@ -92,6 +92,9 @@ struct IoTask {
     max_packet_len: usize,
 
     stream: TcpStream,
+    read_buf: BytesMut,
+    read_bufn: usize,
+
     rx_write_requests: mpsc::Receiver<IoRequest>,
     tx_recv_published: mpsc::Sender<Packet>,
 
@@ -144,6 +147,8 @@ impl Client {
             keep_alive: self.keep_alive,
             max_packet_len: self.max_packet_len,
             stream,
+            read_buf: BytesMut::with_capacity(self.max_packet_len),
+            read_bufn: 0,
             rx_write_requests,
             tx_recv_published,
             last_write_time: Instant::now(),
@@ -386,7 +391,14 @@ enum SelectResult {
 
 impl IoTask {
     async fn run(mut self) {
-        let IoTask { mut rx_write_requests, mut stream, mut last_write_time, .. } = self;
+        let IoTask {
+            mut rx_write_requests,
+            mut stream,
+            mut read_buf,
+            mut read_bufn,
+            mut last_write_time,
+            ..
+        } = self;
         loop {
             let keepalive_next = match &self.keep_alive {
                 KeepAlive::Disabled => None,
@@ -400,7 +412,8 @@ impl IoTask {
             let sel_res = {
                 let mut req_fut = Box::pin(rx_write_requests.recv().fuse());
                 let mut read_fut = Box::pin(
-                    Self::read_packet(&mut stream, self.max_packet_len).fuse());
+                    Self::read_packet(&mut stream, &mut read_buf, &mut read_bufn,
+                                      self.max_packet_len).fuse());
                 let mut ping_fut = match keepalive_next {
                     Some(t) => Box::pin(delay_until(t).boxed().fuse()),
                     None => Box::pin(pending().boxed().fuse()),
@@ -418,7 +431,7 @@ impl IoTask {
                             return;
                         }
                         Err(e) => {
-                            error!("IoTask: Failed to read packet: {}", e);
+                            error!("IoTask: Failed to read packet: {:?}", e);
                         },
                         Ok(p) => {
                             match p {
@@ -428,7 +441,7 @@ impl IoTask {
                                 },
                                 Packet::Publish(_) => {
                                     if let Err(e) = self.tx_recv_published.send(p).await {
-                                        error!("IoTask: Failed to send Packet: {}", e);
+                                        error!("IoTask: Failed to send Packet: {:?}", e);
                                     }
                                 },
                                 Packet::Connack(_) => {
@@ -468,7 +481,7 @@ impl IoTask {
                         // TODO: Test sender closed.
                         // Sender closed.
                         if let Err(e) = stream.shutdown(Shutdown::Both) {
-                            error!("IoTask: Error shutting down TcpStream: {}", e);
+                            error!("IoTask: Error shutting down TcpStream: {:?}", e);
                         }
                         return;
                     },
@@ -508,15 +521,18 @@ impl IoTask {
                     let p = Packet::Pingreq;
                     if let Err(e) = Self::write_packet(&p, &mut stream,
                                                        self.max_packet_len).await {
-                        error!("IoTask: Failed to write ping: {}", e);
+                        error!("IoTask: Failed to write ping: {:?}", e);
                     }
                 },
             };
         }
     }
 
-    async fn write_packet(p: &Packet, stream: &mut TcpStream,
-                          max_packet_len: usize) -> Result<()> {
+    async fn write_packet(
+        p: &Packet,
+        stream: &mut TcpStream,
+        max_packet_len: usize
+    ) -> Result<()> {
         trace!("write_packet p={:#?}", p);
         // TODO: Test long packets.
         let mut bytes = BytesMut::with_capacity(max_packet_len);
@@ -526,25 +542,34 @@ impl IoTask {
         Ok(())
     }
 
-    async fn read_packet(stream: &mut TcpStream, max_packet_len: usize) -> Result<Packet> {
-        let mut buf = BytesMut::new();
+    async fn read_packet(
+        stream: &mut TcpStream,
+        read_buf: &mut BytesMut,
+        read_bufn: &mut usize,
+        max_packet_len: usize
+    ) -> Result<Packet> {
         // TODO: Test long packets.
-        buf.resize(max_packet_len, 0u8);
-        let buflen = buf.len();
-        let mut n = 0;
+        read_buf.resize(max_packet_len, 0u8);
+        let buflen = read_buf.len();
         loop {
-            let nread = stream.read(&mut buf[n..buflen]).await?;
-            n += nread;
+            trace!("Decoding buf={:?}", &read_buf[0..*read_bufn]);
+            let old_len = read_buf.len();
+            if *read_bufn > 0 {
+                let decoded = mqttrs::decode(read_buf)?;
+                if let Some(p) = decoded {
+                    let new_len = read_buf.len();
+                    *read_bufn -= old_len - new_len;
+                    trace!("Remaining buf={:?}", &read_buf[0..*read_bufn]);
+                    trace!("read_packet p={:#?}", p);
+                    return Ok(p);
+                }
+                }
+            let nread = stream.read(&mut read_buf[*read_bufn..buflen]).await?;
+            *read_bufn += nread;
             if nread == 0 {
                 // Socket disconnected
                 error!("IoTask: Socket disconnected");
                 return Err(Error::Disconnected);
-            }
-            trace!("Decoding buf={:?}", &buf[0..n]);
-            let decoded = mqttrs::decode(&mut buf)?;
-            if let Some(p) = decoded {
-                trace!("read_packet p={:#?}", p);
-                return Ok(p);
             }
         }
     }
