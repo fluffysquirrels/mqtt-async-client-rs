@@ -108,16 +108,16 @@ struct IoTask {
 
 #[derive(Debug)]
 struct IoRequest {
-    packet: Packet,
     tx_result: oneshot::Sender<IoResult>,
     io_type: IoType,
 }
 
 #[derive(Debug)]
 enum IoType {
-    WriteOnly,
-    WriteAndResponse { response_pid: Pid },
-    WriteConnect,
+    WriteOnly { packet: Packet },
+    WriteAndResponse { packet: Packet, response_pid: Pid },
+    WriteConnect { packet: Packet },
+    Shutdown,
 }
 
 #[derive(Debug)]
@@ -302,35 +302,34 @@ impl Client {
 
     async fn shutdown(&mut self) -> Result <()> {
         let _c = self.check_connected()?;
-        // Setting the state drops the write end of the channel to the IoTask, which
-        // will then shut down the stream.
+        self.write_request(IoType::Shutdown).await?;
         self.state = ConnectState::Disconnected;
         Ok(())
     }
 
     async fn write_only_packet(&self, p: &Packet) -> Result<()> {
-        self.write_request(p, IoType::WriteOnly)
+        self.write_request(IoType::WriteOnly { packet: p.clone(), })
             .await.map(|_v| ())
     }
 
     async fn write_response_packet(&self, p: &Packet) -> Result<Packet> {
         let io_type = IoType::WriteAndResponse {
-            response_pid: packet_pid(p).expect("packet_pid")
+            packet: p.clone(),
+            response_pid: packet_pid(p).expect("packet_pid"),
         };
-        self.write_request(p, io_type)
+        self.write_request(io_type)
             .await.map(|v| v.expect("return packet"))
     }
 
     async fn write_connect(&self, p: &Packet) -> Result<Packet> {
-        self.write_request(p, IoType::WriteConnect)
+        self.write_request(IoType::WriteConnect { packet: p.clone() })
             .await.map(|v| v.expect("return packet"))
     }
 
-    async fn write_request(&self, p: &Packet, io_type: IoType) -> Result<Option<Packet>> {
+    async fn write_request(&self, io_type: IoType) -> Result<Option<Packet>> {
         let c = self.check_connected()?;
         let (tx, rx) = oneshot::channel::<IoResult>();
         let req = IoRequest {
-            packet: p.clone(),
             tx_result: tx,
             io_type: io_type,
         };
@@ -478,8 +477,8 @@ impl IoTask {
                     },
                 SelectResult::Req(req) => match req {
                     None => {
-                        // TODO: Test sender closed.
                         // Sender closed.
+                        debug!("IoTask: Req stream closed, shutting down.");
                         if let Err(e) = stream.shutdown(Shutdown::Both) {
                             error!("IoTask: Error shutting down TcpStream: {:?}", e);
                         }
@@ -487,30 +486,50 @@ impl IoTask {
                     },
                     Some(req) => {
                         last_write_time = Instant::now();
-                        let res = Self::write_packet(&req.packet, &mut stream,
-                                                     self.max_packet_len).await;
-                        if let Err(ref e) = res {
-                            error!("IoTask: Error writing packet: {:?}", e);
-                            let res = IoResult { result: res.map(|_| None) };
-                            if let Err(e) = req.tx_result.send(res) {
-                                error!("IoTask: Failed to send IoResult: {:?}", e);
+                        let packet = req.io_type.packet();
+                        if let Some(p) = packet {
+                            let res = Self::write_packet(&p, &mut stream,
+                                                         self.max_packet_len).await;
+                            if let Err(ref e) = res {
+                                error!("IoTask: Error writing packet: {:?}", e);
+                                let res = IoResult { result: res.map(|_| None) };
+                                if let Err(e) = req.tx_result.send(res) {
+                                    error!("IoTask: Failed to send IoResult: {:?}", e);
+                                }
+                                continue;
                             }
-                            continue;
-                        } else {
                             match req.io_type {
-                                IoType::WriteOnly => {
+                                IoType::WriteOnly { .. } => {
                                     let res = IoResult { result: res.map(|_| None) };
                                     if let Err(e) = req.tx_result.send(res) {
                                         error!("IoTask: Failed to send IoResult: {:?}", e);
                                     }
                                 },
-                                IoType::WriteAndResponse { response_pid, } => {
+                                IoType::WriteAndResponse { response_pid, .. } => {
                                     self.pid_response_map.insert(response_pid, req);
                                     // TODO: Timeout.
                                 },
-                                IoType::WriteConnect => {
+                                IoType::WriteConnect { .. } => {
                                     self.connack_response = Some(req);
                                 },
+                                IoType::Shutdown => {
+                                    panic!("Not reached because shutdown has no packet")
+                                },
+                            }
+                        } else {
+                            match req.io_type {
+                                IoType::Shutdown => {
+                                    debug!("IoTask: IoType::Shutdown.");
+                                    if let Err(e) = stream.shutdown(Shutdown::Both) {
+                                        error!("IoTask: Error shutting down TcpStream: {:?}", e);
+                                    }
+                                    let res = IoResult { result: Ok(None) };
+                                    if let Err(e) = req.tx_result.send(res) {
+                                        error!("IoTask: Failed to send IoResult: {:?}", e);
+                                    }
+                                    return;
+                                }
+                                _ => (),
                             }
                         }
                     }
@@ -563,7 +582,7 @@ impl IoTask {
                     trace!("read_packet p={:#?}", p);
                     return Ok(p);
                 }
-                }
+            }
             let nread = stream.read(&mut read_buf[*read_bufn..buflen]).await?;
             *read_bufn += nread;
             if nread == 0 {
@@ -571,6 +590,17 @@ impl IoTask {
                 error!("IoTask: Socket disconnected");
                 return Err(Error::Disconnected);
             }
+        }
+    }
+}
+
+impl IoType {
+    fn packet(&self) -> Option<&Packet> {
+        match self {
+            IoType::Shutdown => None,
+            IoType::WriteOnly { packet } => Some(&packet),
+            IoType::WriteAndResponse { packet, .. } => Some(&packet),
+            IoType::WriteConnect { packet, .. } => Some(&packet),
         }
     }
 }

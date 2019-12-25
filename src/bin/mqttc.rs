@@ -82,7 +82,7 @@ async fn main() {
         Command::Subscribe(ref sub_args) => subscribe(sub_args.clone(), args).await,
     };
     if let Err(e) = res {
-        error!("{}", e);
+        error!("{:?}", e);
     }
 }
 
@@ -117,7 +117,6 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
     if any_failed {
         return Err(format!("Some subscribes failed: {:#?}", subres.return_codes()).into());
     }
-    // TODO: Check subres.
     loop {
         let r = client.read_published().await;
         info!("Read r={:?}", r);
