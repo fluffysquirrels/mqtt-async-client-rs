@@ -2,34 +2,34 @@
 
 * Bugs
 
-* Enhancements
-** Test client initiated shutdown
+* Enhancements for launch
 ** Test receiving partial packets
 ** Test subscribe receiving other packets before Suback
 ** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.
 ** Back pressure on write PID allocation?
-** Does the current design support concurrency? If not, maybe change it.
 ** Publish QoS level 1 (at least once)
 *** Retry when no ack.
 ** Subscribe QoS level 1 (at least once)
-** Client connect sends clean session
-** Client connect sends last will
 ** Test client connect sends username and password
 ** Timeout on any RPC
 *** Timeout on Connack
 *** Timeout on Puback
 *** Timeout on Suback
 *** Timeout to write a no-response packet
+*** If a Client does not receive a PINGRESP Packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server.
 ** Publish dup flag
-** Publish retain flag
 ** Unsubscribe
 ** Automated tests
-** If a Client does not receive a PINGRESP Packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server.
+
+* Enhancements
 ** TLS
    Including:
    - Client uses CA cert to validate server
    - Client certificate and key
+** Client connect sends clean session
+** Client connect sends last will
+** Publish retain flag
 ** Local persistent buffering
 ** Offline buffering
 ** High availablity: fail over to a list of servers on failure to connect
