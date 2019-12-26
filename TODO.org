@@ -3,7 +3,6 @@
 * Bugs
 
 * Enhancements for launch
-** Test receiving partial packets
 ** Test subscribe receiving other packets before Suback
 ** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.

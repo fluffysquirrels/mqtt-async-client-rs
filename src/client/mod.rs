@@ -445,7 +445,7 @@ impl IoTask {
                                 },
                                 Packet::Connack(_) => {
                                     if let Some(ca_req) = self.connack_response {
-                                        trace!("Sending connack response p={:#?}",
+                                        trace!("Sending connack response p={:?}",
                                                p);
                                         let res = IoResult { result: Ok(Some(p)) };
                                         if let Err(e) = ca_req.tx_result.send(res) {
@@ -461,7 +461,7 @@ impl IoTask {
                                         match pid_response {
                                             None => error!("Unknown PID: {:?}", pid),
                                             Some(req) => {
-                                                trace!("Sending response PID={:?} p={:#?}",
+                                                trace!("Sending response PID={:?} p={:?}",
                                                        pid, p);
                                                 let res = IoResult { result: Ok(Some(p)) };
                                                 if let Err(e) = req.tx_result.send(res) {
@@ -568,22 +568,27 @@ impl IoTask {
         max_packet_len: usize
     ) -> Result<Packet> {
         // TODO: Test long packets.
-        read_buf.resize(max_packet_len, 0u8);
-        let buflen = read_buf.len();
         loop {
-            trace!("Decoding buf={:?}", &read_buf[0..*read_bufn]);
-            let old_len = read_buf.len();
+            trace!("read_packet Decoding buf={:?}", &read_buf[0..*read_bufn]);
             if *read_bufn > 0 {
+                // We already have some bytes in the buffer. Try to decode a packet
+                read_buf.split_off(*read_bufn);
+                let old_len = read_buf.len();
                 let decoded = mqttrs::decode(read_buf)?;
+                trace!("read_packet decoded={:#?}", decoded);
                 if let Some(p) = decoded {
                     let new_len = read_buf.len();
+                    trace!("read_packet old_len={} new_len={} read_bufn={}",
+                           old_len, new_len, *read_bufn);
                     *read_bufn -= old_len - new_len;
-                    trace!("Remaining buf={:?}", &read_buf[0..*read_bufn]);
-                    trace!("read_packet p={:#?}", p);
+                    trace!("read_packet Remaining buf={:?}", &read_buf[0..*read_bufn]);
                     return Ok(p);
                 }
             }
-            let nread = stream.read(&mut read_buf[*read_bufn..buflen]).await?;
+            read_buf.resize(max_packet_len, 0u8);
+            let readlen = read_buf.len();
+            trace!("read_packet read read_bufn={} readlen={}", *read_bufn, readlen);
+            let nread = stream.read(&mut read_buf[*read_bufn..readlen]).await?;
             *read_bufn += nread;
             if nread == 0 {
                 // Socket disconnected
