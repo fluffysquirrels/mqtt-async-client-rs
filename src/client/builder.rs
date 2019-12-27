@@ -2,7 +2,7 @@ use crate::{
     client::{
         Client,
         KeepAlive,
-        ConnectState,
+        client::ConnectState,
     },
     Result,
     util::{
