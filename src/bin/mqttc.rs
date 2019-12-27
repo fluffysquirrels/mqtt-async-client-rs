@@ -61,7 +61,7 @@ struct Publish {
 
     #[structopt(long,
                 default_value("1"))]
-    repeats: u16,
+    repeats: u32,
     // TODO: Message retention.
 }
 
