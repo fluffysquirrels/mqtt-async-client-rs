@@ -263,7 +263,7 @@ impl Client {
         match r {
             Packet::Publish(p) => {
                 if p.qospid != QosPid::AtMostOnce {
-                    panic!("Unimplemented QoS: {:?}", p.qospid.qos());
+                    error!("Unimplemented QoS: {:?}", p.qospid.qos());
                 }
                 let rr = ReadResult {
                     topic: p.topic_name,
