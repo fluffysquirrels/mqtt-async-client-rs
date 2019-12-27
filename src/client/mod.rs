@@ -250,7 +250,7 @@ impl Client {
         }
     }
 
-    pub async fn read_published(&mut self) -> Result<ReadResult> {
+    pub async fn read_subscriptions(&mut self) -> Result<ReadResult> {
         let c = self.check_connected_mut()?;
         let r = match c.rx_recv_published.recv().await {
             Some(r) => r,

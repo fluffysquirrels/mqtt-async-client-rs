@@ -118,7 +118,7 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
         return Err(format!("Some subscribes failed: {:#?}", subres.return_codes()).into());
     }
     loop {
-        let r = client.read_published().await;
+        let r = client.read_subscriptions().await;
         info!("Read r={:?}", r);
         if let Err(Error::Disconnected) = r {
             return Err(Error::Disconnected);
