@@ -9,7 +9,6 @@
 
 ** Add item documentation
 ** Add usage examples
-** Test subscribe receiving other packets before Suback
 ** Timeout on any RPC
 *** Timeout on Connack
 *** Timeout on Puback
