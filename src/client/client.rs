@@ -215,8 +215,8 @@ impl Client {
     pub async fn subscribe(&mut self, s: Subscribe) -> Result<SubscribeResult> {
         let pid = self.alloc_write_pid()?;
         // TODO: Support subscribe to qos != AtMostOnce.
-        if s.topics().iter().any(|t| t.qos != QoS::AtMostOnce) {
-            return Err("Only Qos::AtMostOnce supported right now".into())
+        if s.topics().iter().any(|t| t.qos == QoS::ExactlyOnce) {
+            return Err("Qos::ExactlyOnce is not supported right now".into())
         }
         let p = Packet::Subscribe(mqttrs::Subscribe {
             pid: pid,
@@ -255,8 +255,14 @@ impl Client {
         };
         match r {
             Packet::Publish(p) => {
-                if p.qospid != QosPid::AtMostOnce {
-                    error!("Unimplemented QoS: {:?}", p.qospid.qos());
+                match p.qospid {
+                    QosPid::AtMostOnce => (),
+                    QosPid::AtLeastOnce(pid) => {
+                        self.write_only_packet(&Packet::Puback(pid)).await?;
+                    },
+                    QosPid::ExactlyOnce(_) => {
+                        error!("Received publish with unimplemented QoS: ExactlyOnce");
+                    }
                 }
                 let rr = ReadResult {
                     topic: p.topic_name,

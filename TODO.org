@@ -9,7 +9,6 @@
 ** Back pressure on write PID allocation?
 ** Publish QoS level 1 (at least once)
 *** Retry when no ack.
-** Subscribe QoS level 1 (at least once)
 ** Test client connect sends username and password
 ** Timeout on any RPC
 *** Timeout on Connack

@@ -68,7 +68,11 @@ struct Publish {
 #[derive(Clone, Debug, StructOpt)]
 struct Subscribe {
     topic: Vec<String>,
-    // TODO: QoS.
+
+    #[structopt(long,
+                possible_values(&["0", "1", "2"]),
+                default_value("0"))]
+    qos:u8,
 }
 
 #[tokio::main]
@@ -90,12 +94,7 @@ async fn publish(pub_args: Publish, args: Args) -> Result<()> {
     let mut client = client_from_args(args)?;
     client.connect().await?;
     let mut p = PublishOpts::new(pub_args.topic.clone(), pub_args.message.as_bytes().to_vec());
-    p.set_qos(match pub_args.qos {
-        0 => QoS::AtMostOnce,
-        1 => QoS::AtLeastOnce,
-        2 => QoS::ExactlyOnce,
-        _ => panic!("Not reached"),
-    });
+    p.set_qos(int_to_qos(pub_args.qos));
     let futs = (0..(pub_args.repeats)).map(|_| {
         client.publish(&p)
     });
@@ -110,7 +109,7 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
     let mut client = client_from_args(args)?;
     client.connect().await?;
     let subopts = SubscribeOpts::new(sub_args.topic.iter().map(|t|
-        SubscribeTopic {qos: QoS::AtMostOnce, topic_path: t.clone() }
+        SubscribeTopic {qos: int_to_qos(sub_args.qos), topic_path: t.clone() }
     ).collect());
     let subres = client.subscribe(subopts).await?;
     let any_failed = subres.return_codes().iter().any(|rc| *rc == SubscribeReturnCodes::Failure);
@@ -134,4 +133,13 @@ fn client_from_args(args: Args) -> Result<Client> {
         .set_password(args.password.map(|s| s.as_bytes().to_vec()))
         .set_client_id(args.client_id)
         .build()
+}
+
+fn int_to_qos(qos: u8) -> QoS {
+    match qos {
+        0 => QoS::AtMostOnce,
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => panic!("Not reached"),
+    }
 }
