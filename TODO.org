@@ -1,26 +1,32 @@
 * WIP
 
+
 * Bugs
 
+
 * Enhancements for launch
+
+
+** Add item documentation
+** Add usage examples
 ** Test subscribe receiving other packets before Suback
 ** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.
 ** Back pressure on write PID allocation?
-** Publish QoS level 1 (at least once)
-*** Retry when no ack.
-** Test client connect sends username and password
 ** Timeout on any RPC
 *** Timeout on Connack
 *** Timeout on Puback
 *** Timeout on Suback
 *** Timeout to write a no-response packet
 *** If a Client does not receive a PINGRESP Packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server.
-** Publish dup flag
 ** Unsubscribe
 ** Automated tests
+*** Long packets, short packets
+
 
 * Enhancements
+
+
 ** TLS
    Including:
    - Client uses CA cert to validate server
@@ -33,5 +39,6 @@
 ** High availablity: fail over to a list of servers on failure to connect
 ** MQTT over WebSocket
 ** Automatic reconnect
+*** Queue outbound publishes in progress and retry with dup=1 after reconnect.
 ** Publish QoS level 2 (exactly once)
 ** Subscribe QoS level 2 (exactly once)
