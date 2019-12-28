@@ -10,7 +10,6 @@
 ** Add item documentation
 ** Add usage examples
 ** Test subscribe receiving other packets before Suback
-** Back pressure on write PID allocation?
 ** Timeout on any RPC
 *** Timeout on Connack
 *** Timeout on Puback
@@ -38,5 +37,6 @@
 ** MQTT over WebSocket
 ** Automatic reconnect
 *** Queue outbound publishes in progress and retry with dup=1 after reconnect.
+** Back pressure on write PID allocation?
 ** Publish QoS level 2 (exactly once)
 ** Subscribe QoS level 2 (exactly once)
