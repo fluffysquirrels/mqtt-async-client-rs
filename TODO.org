@@ -10,7 +10,6 @@
 ** Add item documentation
 ** Add usage examples
 ** Test subscribe receiving other packets before Suback
-** Test track used Pid's, only re-use Pid's safely
 ** Test long packets, possibly fix reading long packets.
 ** Back pressure on write PID allocation?
 ** Timeout on any RPC
