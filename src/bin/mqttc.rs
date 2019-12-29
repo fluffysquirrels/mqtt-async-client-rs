@@ -14,7 +14,6 @@ use mqtt_client::{
         Publish as PublishOpts,
         QoS,
         Subscribe as SubscribeOpts,
-        SubscribeReturnCodes,
         SubscribeTopic,
     },
     Error,
@@ -113,10 +112,7 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
         SubscribeTopic {qos: int_to_qos(sub_args.qos), topic_path: t.clone() }
     ).collect());
     let subres = client.subscribe(subopts).await?;
-    let any_failed = subres.return_codes().iter().any(|rc| *rc == SubscribeReturnCodes::Failure);
-    if any_failed {
-        return Err(format!("Some subscribes failed: {:#?}", subres.return_codes()).into());
-    }
+    subres.any_failures()?;
     loop {
         let r = client.read_subscriptions().await;
         info!("Read r={:?}", r);

@@ -1,9 +1,11 @@
-pub use mqttrs::{
+use crate::Result;
+use mqttrs::{
     QoS,
     SubscribeReturnCodes,
     SubscribeTopic,
 };
 
+/// Arguments for a publish operation.
 #[derive(Clone, Debug)]
 pub struct Publish {
     topic: String,
@@ -12,6 +14,7 @@ pub struct Publish {
 }
 
 impl Publish {
+    /// Construct a new instance.
     pub fn new(topic: String, payload: Vec<u8>) -> Publish {
         Publish {
             topic,
@@ -20,53 +23,75 @@ impl Publish {
         }
     }
 
+    /// Returns the topic name of this instance.
     pub fn topic(&self) -> &str {
         &*self.topic
     }
 
+    /// Returns the payload data of this instance.
     pub fn payload(&self) -> &[u8] {
         &*self.payload
     }
 
+    /// Returns the QoS level configured.
     pub fn qos(&self) -> QoS {
         self.qos
     }
 
-    /// Set MQTT quality of service
+    /// Set MQTT quality of service.
+    ///
+    /// The default is QoS::AtMostOnce.
     pub fn set_qos(&mut self, qos: QoS) -> &mut Self {
         self.qos = qos;
         self
     }
 }
 
+/// Arguments for a subscribe operation.
 #[derive(Debug)]
 pub struct Subscribe {
     topics: Vec<SubscribeTopic>,
 }
 
 impl Subscribe {
+    /// Create a new instance.
     pub fn new(v: Vec<SubscribeTopic>) -> Subscribe {
         Subscribe {
             topics: v,
         }
     }
 
+    /// Returns the topics selected.
     pub fn topics(&self) -> &[SubscribeTopic] {
         &*self.topics
     }
 }
 
+/// The return value from a subscribe operation.
 #[derive(Debug)]
 pub struct SubscribeResult {
     pub(crate) return_codes: Vec<SubscribeReturnCodes>,
 }
 
 impl SubscribeResult {
+    /// Returns the return codes from the operation.
     pub fn return_codes(&self) -> &[SubscribeReturnCodes] {
         &*self.return_codes
     }
+
+    /// Returns an error if any return codes from the operation were `Failure`.
+    pub fn any_failures(&self) -> Result<()> {
+        let any_failed =
+            self.return_codes().iter()
+                .any(|rc| *rc == SubscribeReturnCodes::Failure);
+        if any_failed {
+            return Err(format!("Some subscribes failed: {:#?}", self.return_codes()).into());
+        }
+        Ok(())
+    }
 }
 
+/// The result from a read subscriptions operation.
 #[derive(Debug)]
 pub struct ReadResult {
     pub(crate) topic: String,
@@ -74,15 +99,18 @@ pub struct ReadResult {
 }
 
 impl ReadResult {
+    /// Returns the topic that was published to.
     pub fn topic(&self) -> &str {
         &*self.topic
     }
 
+    /// Returns the payload data that was published.
     pub fn payload(&self) -> &[u8] {
         &*self.payload
     }
 }
 
+/// Represents the keep alive setting for a client.
 #[derive(Clone, Copy, Debug)]
 pub enum KeepAlive {
     Disabled,

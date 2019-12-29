@@ -28,10 +28,7 @@ async fn pub_and_sub2() -> Result<()> {
         SubscribeTopic {qos: QoS::AtMostOnce, topic_path: "a".to_owned() }
     ]);
     let subres = c.subscribe(subopts).await?;
-    let any_failed = subres.return_codes().iter().any(|rc| *rc == SubscribeReturnCodes::Failure);
-    if any_failed {
-        return Err(format!("Some subscribes failed: {:#?}", subres.return_codes()).into());
-    }
+    let any_failed = subres.any_failures()?;
 
     // Publish to "a"
     let mut p = Publish::new("a".to_owned(), "x".as_bytes().to_vec());
