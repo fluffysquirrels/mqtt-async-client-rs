@@ -12,6 +12,10 @@ use crate::{
 };
 use std::cell::RefCell;
 
+/// A fluent builder interface to configure a Client.
+///
+/// Note that you must call `.set_host()` to configure a host to
+/// connect to before `.build()`
 #[derive(Default)]
 pub struct ClientBuilder {
     host: Option<String>,
@@ -26,6 +30,7 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
+    /// Build a new `Client` with this configuration.
     pub fn build(&mut self) -> Result<Client> {
         Ok(Client {
             host: match self.host {

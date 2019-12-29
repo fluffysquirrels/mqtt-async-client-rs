@@ -1,3 +1,4 @@
+//! A simple command-line client to test the MQTT library.
 #![deny(warnings)]
 
 use futures_util::{

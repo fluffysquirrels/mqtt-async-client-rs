@@ -1,3 +1,5 @@
+//! An MQTT client and supporting types.
+
 mod builder;
 pub use builder::ClientBuilder;
 

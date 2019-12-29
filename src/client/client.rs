@@ -55,6 +55,19 @@ use tokio::{
     },
 };
 
+/// An MQTT client.
+///
+/// Start building an instance by calling Client::builder() to get a
+/// ClientBuilder, using the fluent builder pattern on ClientBuilder,
+/// then calling ClientBuilder::build(). For example:
+///
+/// ```
+/// # use mqtt_client::client::Client;
+/// let client =
+///     Client::builder()
+///        .set_host("example.com".to_owned())
+///        .build();
+/// ```
 pub struct Client {
     pub(crate) host: String,
     pub(crate) port: u16,
@@ -75,54 +88,94 @@ pub(crate) enum ConnectState {
     Connected(ClientConnection)
 }
 
+/// The client side of the communication channels to an IO task.
 pub(crate) struct ClientConnection {
+    /// Sender to send IO requests to the IO task.
     tx_write_requests: mpsc::Sender<IoRequest>,
+
+    /// Receiver to receive Publish packets from the IO task.
     rx_recv_published: mpsc::Receiver<Packet>,
 }
 
+/// The state held by the IO task, a long-running tokio future. The IO
+/// task manages the underlying TCP connection, sends periodic
+/// keep-alive ping packets, and sends response packets to tasks that
+/// are waiting.
 struct IoTask {
+    /// The keep-alive time configured for the connection.
     keep_alive: KeepAlive,
+
+    /// The max packet length configured for the connection.
     max_packet_len: usize,
 
+    /// The TCP stream connected to an MQTT broker.
     stream: TcpStream,
+
+    /// A buffer with data read from `stream`.
     read_buf: BytesMut,
+
+    /// The number of bytes at the start of `read_buf` that have been
+    /// read from `stream`.
     read_bufn: usize,
 
+    /// Receiver to receive IO requests for the IO task.
     rx_write_requests: mpsc::Receiver<IoRequest>,
+
+    /// Sender to send Publish packets from the IO task.
     tx_recv_published: mpsc::Sender<Packet>,
 
     /// The time the last packet was written to `stream`.
     /// Used to calculate when to send a Pingreq
     last_write_time: Instant,
 
+    /// A map from response Pid to the IoRequest that initiated the
+    /// request that will be responded to.
     pid_response_map: BTreeMap<Pid, IoRequest>,
+
+    /// Represents the task waiting in Client.connect() for the Connack
+    /// connection response.
     connack_response: Option<IoRequest>,
 }
 
+/// An IO request from `Client` to the IO task.
 #[derive(Debug)]
 pub(crate) struct IoRequest {
+    /// A one-shot channel Sender to send the result of the IO request.
     tx_result: oneshot::Sender<IoResult>,
+
+    /// Represents the data needed to carry out the IO request.
     io_type: IoType,
 }
 
+/// The data the IO task needs to carry out an IO request.
 #[derive(Debug)]
 enum IoType {
+    /// A packet to write that expects no response.
     WriteOnly { packet: Packet },
+
+    /// A packet to write that expects a response with a certain `Pid`.
     WriteAndResponse { packet: Packet, response_pid: Pid },
+
+    /// A connect packet that expects a Connack response.
     WriteConnect { packet: Packet },
+
+    /// A request to shut down the TCP connection gracefully.
     Shutdown,
 }
 
+/// The result of an IO request sent by the IO task, which may contain a packet.
 #[derive(Debug)]
 struct IoResult {
     result: Result<Option<Packet>>,
 }
 
 impl Client {
+    /// Start a fluent builder interface to construct a `Client`.
     pub fn builder() -> ClientBuilder {
         ClientBuilder::default()
     }
 
+    /// Open a connection to the configured MQTT broker.
     pub async fn connect(&mut self) -> Result<()> {
         self.check_disconnected()?;
         let stream = TcpStream::connect((&*self.host, self.port))
@@ -182,6 +235,11 @@ impl Client {
         Ok(())
     }
 
+    /// Publish some data on a topic.
+    ///
+    /// Note that this method takes `&self`. This means a caller can
+    /// create several publish futures to publish several payloads of
+    /// data simultaneously without waiting for responses.
     pub async fn publish(&self, p: &Publish) -> Result<()> {
         let qos = p.qos();
         if qos == QoS::ExactlyOnce {
@@ -212,6 +270,7 @@ impl Client {
         Ok(())
     }
 
+    /// Subscribe to a topic so `read_subscriptions` returns data for them.
     pub async fn subscribe(&mut self, s: Subscribe) -> Result<SubscribeResult> {
         let pid = self.alloc_write_pid()?;
         // TODO: Support subscribe to qos != AtMostOnce.
@@ -243,6 +302,7 @@ impl Client {
         }
     }
 
+    /// Wait for the next Publish packet for one of this Client's subscriptions.
     pub async fn read_subscriptions(&mut self) -> Result<ReadResult> {
         let c = self.check_connected_mut()?;
         let r = match c.rx_recv_published.recv().await {

@@ -3,8 +3,10 @@ use std::{
     fmt::{Debug, Display, Formatter, self},
 };
 
+/// Fallible result values returned by the library.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Errors returned by the library.
 #[derive(Debug)]
 pub enum Error {
     Disconnected,
