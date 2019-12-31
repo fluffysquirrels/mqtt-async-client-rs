@@ -1,3 +1,6 @@
+//! Some integration tests that require an MQTT 3.1.1 broker listening
+//! on localhost:1833.
+
 #![deny(warnings)]
 
 use mqtt_client::{
