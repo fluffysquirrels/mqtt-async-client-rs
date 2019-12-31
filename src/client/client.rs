@@ -8,6 +8,7 @@ use crate::{
             ReadResult,
             Subscribe,
             SubscribeResult,
+            Unsubscribe,
         },
     },
     Error,
@@ -270,10 +271,10 @@ impl Client {
         Ok(())
     }
 
-    /// Subscribe to a topic so `read_subscriptions` returns data for them.
+    /// Subscribe to some topics so `read_subscriptions` returns data for them.
     pub async fn subscribe(&mut self, s: Subscribe) -> Result<SubscribeResult> {
         let pid = self.alloc_write_pid()?;
-        // TODO: Support subscribe to qos != AtMostOnce.
+        // TODO: Support subscribe to qos == ExactlyOnce.
         if s.topics().iter().any(|t| t.qos == QoS::ExactlyOnce) {
             return Err("Qos::ExactlyOnce is not supported right now".into())
         }
@@ -283,7 +284,6 @@ impl Client {
         });
         let r = self.write_response_packet(&p).await?;
         // TODO: Implement timeout.
-        // TODO: BUG: Handle other packets.
         match r {
             Packet::Suback(mqttrs::Suback {
                 pid: suback_pid,
@@ -296,6 +296,29 @@ impl Client {
             },
             _ => {
                 return Err(format!("Unexpected packet waiting for Suback(Pid={:?}): {:#?}",
+                                   pid, r)
+                           .into());
+            }
+        }
+    }
+
+    pub async fn unsubscribe(&mut self, u: Unsubscribe) -> Result<()> {
+        let pid = self.alloc_write_pid()?;
+        let p = Packet::Unsubscribe(mqttrs::Unsubscribe {
+            pid: pid,
+            topics: u.topics().iter().map(|ut| ut.topic_name().to_owned())
+                     .collect::<Vec<String>>(),
+        });
+        let r = self.write_response_packet(&p).await?;
+        // TODO: Implement timeout.
+        match r {
+            Packet::Unsuback(ack_pid)
+            if ack_pid == pid => {
+                self.free_write_pid(pid)?;
+                Ok(())
+            },
+            _ => {
+                return Err(format!("Unexpected packet waiting for Unsuback(Pid={:?}): {:#?}",
                                    pid, r)
                            .into());
             }

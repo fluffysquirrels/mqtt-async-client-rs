@@ -54,7 +54,7 @@ pub struct Subscribe {
 }
 
 impl Subscribe {
-    /// Create a new instance.
+    /// Construct a new instance.
     pub fn new(v: Vec<SubscribeTopic>) -> Subscribe {
         Subscribe {
             topics: v,
@@ -88,6 +88,40 @@ impl SubscribeResult {
             return Err(format!("Some subscribes failed: {:#?}", self.return_codes()).into());
         }
         Ok(())
+    }
+}
+
+/// Arguments for an unsubscribe operation.
+pub struct Unsubscribe {
+    topics: Vec<UnsubscribeTopic>
+}
+
+impl Unsubscribe {
+    /// Construct a new instance.
+    pub fn new(topics: Vec<UnsubscribeTopic>) -> Unsubscribe {
+        Unsubscribe { topics: topics }
+    }
+
+    /// Returns the topics for the operation
+    pub fn topics(&self) -> &[UnsubscribeTopic] {
+        &*self.topics
+    }
+}
+
+/// A topic for an unsubscribe operation.
+pub struct UnsubscribeTopic {
+    topic_name: String,
+}
+
+impl UnsubscribeTopic {
+    /// Construct a new instance.
+    pub fn new(topic_name: String) -> UnsubscribeTopic {
+        UnsubscribeTopic { topic_name: topic_name }
+    }
+
+    /// Returns the topic name for the operation.
+    pub fn topic_name(&self) -> &str {
+        &*self.topic_name
     }
 }
 

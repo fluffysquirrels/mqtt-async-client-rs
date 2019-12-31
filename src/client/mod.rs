@@ -13,6 +13,8 @@ pub use value_types::{
     ReadResult,
     Subscribe,
     SubscribeResult,
+    Unsubscribe,
+    UnsubscribeTopic,
 };
 
 pub use mqttrs::{
