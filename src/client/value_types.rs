@@ -147,8 +147,14 @@ impl ReadResult {
 /// Represents the keep alive setting for a client.
 #[derive(Clone, Copy, Debug)]
 pub enum KeepAlive {
+    /// Keep alive ping packets are disabled.
     Disabled,
-    Enabled { secs: u16 },
+
+    /// Send a keep alive ping packet every `secs` seconds.
+    Enabled {
+        /// The number of seconds between packets.
+        secs: u16
+    },
 }
 
 impl KeepAlive {

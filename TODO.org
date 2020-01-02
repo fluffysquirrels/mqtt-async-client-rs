@@ -7,7 +7,6 @@
 * Enhancements for launch
 
 
-** Add item documentation
 ** Add usage examples
 ** Timeout on any RPC
 *** Timeout on Connack

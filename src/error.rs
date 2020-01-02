@@ -9,8 +9,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Errors returned by the library.
 #[derive(Debug)]
 pub enum Error {
+    /// The client is disconnected.
     Disconnected,
+
+    /// An error represented by an implementation of std::error::Error.
     StdError(Box<dyn std::error::Error + Send + Sync>),
+
+    /// An error represented as a String.
     String(String),
 
     #[doc(hidden)]
@@ -18,6 +23,7 @@ pub enum Error {
 }
 
 impl Error {
+    /// Construct an error instance from an implementation of std::error::Error.
     pub fn from_std_err<T: std::error::Error + Send + Sync + 'static>(e: T) -> Error {
         Error::StdError(Box::new(e))
     }

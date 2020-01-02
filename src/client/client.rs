@@ -271,7 +271,8 @@ impl Client {
         Ok(())
     }
 
-    /// Subscribe to some topics so `read_subscriptions` returns data for them.
+    /// Subscribe to some topics.`read_subscriptions` will return
+    /// data for them.
     pub async fn subscribe(&mut self, s: Subscribe) -> Result<SubscribeResult> {
         let pid = self.alloc_write_pid()?;
         // TODO: Support subscribe to qos == ExactlyOnce.
@@ -302,6 +303,8 @@ impl Client {
         }
     }
 
+    /// Unsubscribe from some topics. `read_subscriptions` will no
+    /// longer return data for them.
     pub async fn unsubscribe(&mut self, u: Unsubscribe) -> Result<()> {
         let pid = self.alloc_write_pid()?;
         let p = Packet::Unsubscribe(mqttrs::Unsubscribe {
