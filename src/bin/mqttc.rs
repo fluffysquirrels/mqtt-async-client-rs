@@ -109,7 +109,7 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
     let mut client = client_from_args(args)?;
     client.connect().await?;
     let subopts = SubscribeOpts::new(sub_args.topic.iter().map(|t|
-        SubscribeTopic {qos: int_to_qos(sub_args.qos), topic_path: t.clone() }
+        SubscribeTopic { qos: int_to_qos(sub_args.qos), topic_path: t.clone() }
     ).collect());
     let subres = client.subscribe(subopts).await?;
     subres.any_failures()?;
