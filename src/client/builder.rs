@@ -11,6 +11,7 @@ use crate::{
     }
 };
 use std::cell::RefCell;
+use tokio::time::Duration;
 
 /// A fluent builder interface to configure a Client.
 ///
@@ -27,6 +28,7 @@ pub struct ClientBuilder {
     client_id: Option<String>,
     packet_buffer_len: Option<usize>,
     max_packet_len: Option<usize>,
+    operation_timeout: Option<Duration>,
 }
 
 impl ClientBuilder {
@@ -45,6 +47,7 @@ impl ClientBuilder {
             client_id: self.client_id.clone(),
             packet_buffer_len: self.packet_buffer_len.unwrap_or(100),
             max_packet_len: self.max_packet_len.unwrap_or(64 * 1024),
+            operation_timeout: self.operation_timeout.unwrap_or(Duration::from_secs(30)),
 
             state: ConnectState::Disconnected,
             free_write_pids: RefCell::new(FreePidList::new()),
@@ -119,6 +122,14 @@ impl ClientBuilder {
     /// The default is 64 * 1024 bytes.
     pub fn set_max_packet_len(&mut self, max_packet_len: usize) -> &mut Self {
         self.max_packet_len = Some(max_packet_len);
+        self
+    }
+
+    /// Set the timeout for operations.
+    ///
+    /// The default is 30 seconds.
+    pub fn set_operation_timeout(&mut self, operation_timeout: Duration) -> &mut Self {
+        self.operation_timeout = Some(operation_timeout);
         self
     }
 }

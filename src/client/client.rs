@@ -52,7 +52,9 @@ use tokio::{
     time::{
         delay_until,
         Duration,
+        Elapsed,
         Instant,
+        timeout,
     },
 };
 
@@ -79,6 +81,7 @@ pub struct Client {
     pub(crate) client_id: Option<String>,
     pub(crate) packet_buffer_len: usize,
     pub(crate) max_packet_len: usize,
+    pub(crate) operation_timeout: Duration,
 
     pub(crate) state: ConnectState,
     pub(crate) free_write_pids: RefCell<FreePidList>,
@@ -219,7 +222,13 @@ impl Client {
             username: self.username.clone(),
             password: self.password.clone(),
         });
-        let connack = self.write_connect(&conn).await?;
+        let connack = timeout(self.operation_timeout, self.write_connect(&conn)).await;
+        if let Err(Elapsed { .. }) = connack {
+            let _ = self.shutdown().await;
+            return Err(format!("Timeout waiting for Connack after {}ms",
+                               self.operation_timeout.as_millis()).into());
+        }
+        let connack = connack.expect("Not a timeout")?;
         // TODO: timeout on CONNACK
         match connack {
             Packet::Connack(ca) => {

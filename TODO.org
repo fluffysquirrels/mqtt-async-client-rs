@@ -9,7 +9,6 @@
 
 ** Add usage examples
 ** Timeout on any RPC
-*** Timeout on Connack
 *** Timeout on Puback
 *** Timeout on Suback
 *** Timeout on Unsuback
