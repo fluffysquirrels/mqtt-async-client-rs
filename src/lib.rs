@@ -1,6 +1,7 @@
 //! An MQTT 3.1.1 client written in Rust.
 //!
-//! For example usage see the command-line test app at `src/bin/mqttc.rs`
+//! For example usage see the command-line test app at
+//! `src/bin/mqttc.rs`, and integration tests at `tests/*.rs`.
 
 #![deny(warnings)]
 #![deny(missing_docs)]
