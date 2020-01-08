@@ -29,6 +29,7 @@ use mqtt_client::{
     Result,
 };
 use rustls;
+use std::io::Cursor;
 use tokio::{
     self,
     time::{
@@ -125,7 +126,7 @@ fn unsubscribe() -> Result<()> {
 fn tls_client() -> Result<Client> {
     let mut cc = rustls::ClientConfig::new();
     let cert_bytes = include_bytes!("certs/cacert.pem");
-    let cert = rustls::internal::pemfile::certs(&mut std::io::Cursor::new(&cert_bytes[..]))
+    let cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
         .map_err(|_| Error::from("Error parsing cert file"))?[0].clone();
     cc.root_store.add(&cert)
         .map_err(|e| Error::from_std_err(e))?;

@@ -7,8 +7,10 @@
 * Enhancements for launch
 
 
-** TLS support for mqttc
+** TLS support for mqttc using a CA file.
+** TLS support for mqttc using webpki root certificates.
 ** Document that we use the log crate and that trace level spills secrets.
+** Log more on level info: connect/disconnect.
 ** Timeout on any RPC
 *** Timeout on Puback. Warn?
 *** Timeout on Suback. Warn?

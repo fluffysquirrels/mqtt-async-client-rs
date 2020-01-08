@@ -19,6 +19,8 @@ use mqtt_client::{
     Error,
     Result,
 };
+use rustls;
+use std::io::Cursor;
 use structopt::StructOpt;
 
 #[derive(Clone, Debug, StructOpt)]
@@ -46,6 +48,11 @@ struct Args {
     /// Client ID to identify as, optional.
     #[structopt(long)]
     client_id: Option<String>,
+
+    /// Enable TLS and set the path to a PEM file containing the
+    /// CA certificate that signs the remote server's certificate.
+    #[structopt(long)]
+    tls_ca_file: Option<String>,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -136,13 +143,24 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
 }
 
 fn client_from_args(args: Args) -> Result<Client> {
-    Client::builder()
-        .set_host(args.host)
-        .set_port(args.port)
-        .set_username(args.username)
-        .set_password(args.password.map(|s| s.as_bytes().to_vec()))
-        .set_client_id(args.client_id)
-        .build()
+    let mut b = Client::builder();
+    b.set_host(args.host)
+     .set_port(args.port)
+     .set_username(args.username)
+     .set_password(args.password.map(|s| s.as_bytes().to_vec()))
+     .set_client_id(args.client_id);
+
+    if let Some(s) = args.tls_ca_file {
+        let mut cc = rustls::ClientConfig::new();
+        let cert_bytes = std::fs::read(s)?;
+        let cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
+            .map_err(|_| Error::from("Error parsing cert file"))?[0].clone();
+        cc.root_store.add(&cert)
+            .map_err(|e| Error::from_std_err(e))?;
+        b.set_tls_client_config(cc);
+    }
+
+    b.build()
 }
 
 fn int_to_qos(qos: u8) -> QoS {
