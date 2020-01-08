@@ -27,18 +27,23 @@ struct Args {
     #[structopt(subcommand)]
     cmd: Command,
 
+    /// Username to authenticate with, optional.
     #[structopt(long)]
     username: Option<String>,
 
+    /// Password to authenticate with, optional.
     #[structopt(long)]
     password: Option<String>,
 
+    /// Host to connect to, REQUIRED.
     #[structopt(long)]
     host: String,
 
+    /// TCP/IP port to connect to.
     #[structopt(long, default_value="1883")]
     port: u16,
 
+    /// Client ID to identify as, optional.
     #[structopt(long)]
     client_id: Option<String>,
 }
@@ -51,22 +56,27 @@ enum Command {
 
 #[derive(Clone, Debug, StructOpt)]
 struct Publish {
+    /// Topic name to publish to. REQUIRED
     topic: String,
+
+    /// Message payload to publish. REQUIRED.
     message: String,
 
+    /// Quality of service code to use
     #[structopt(long,
                 possible_values(&["0", "1", "2"]),
                 default_value("0"))]
     qos: u8,
 
+    /// Send multiple copies of the message.
     #[structopt(long,
                 default_value("1"))]
     repeats: u32,
-    // TODO: Message retention.
 }
 
 #[derive(Clone, Debug, StructOpt)]
 struct Subscribe {
+    /// Topic names to subscribe to. REQUIRED
     topic: Vec<String>,
 
     #[structopt(long,
@@ -107,6 +117,9 @@ async fn publish(pub_args: Publish, args: Args) -> Result<()> {
 
 async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
     let mut client = client_from_args(args)?;
+    if sub_args.topic.len() == 0 {
+        return Err(Error::from("You must subscribe to at least one topic."));
+    }
     client.connect().await?;
     let subopts = SubscribeOpts::new(sub_args.topic.iter().map(|t|
         SubscribeTopic { qos: int_to_qos(sub_args.qos), topic_path: t.clone() }
