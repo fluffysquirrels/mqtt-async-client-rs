@@ -34,14 +34,19 @@ use mqttrs::{
     QosPid,
     self
 };
+use rustls;
 use std::{
     cell::RefCell,
     collections::BTreeMap,
-    net::Shutdown,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
 };
 use tokio::{
     io::{
+        AsyncRead,
         AsyncReadExt,
+        AsyncWrite,
         AsyncWriteExt,
     },
     net::TcpStream,
@@ -56,6 +61,12 @@ use tokio::{
         Instant,
         timeout,
     },
+};
+use tokio_rustls::{
+    self,
+    client::TlsStream,
+    TlsConnector,
+    webpki::DNSNameRef,
 };
 
 /// An MQTT client.
@@ -82,6 +93,7 @@ pub struct Client {
     pub(crate) packet_buffer_len: usize,
     pub(crate) max_packet_len: usize,
     pub(crate) operation_timeout: Duration,
+    pub(crate) tls_client_config: Option<Arc<rustls::ClientConfig>>,
 
     pub(crate) state: ConnectState,
     pub(crate) free_write_pids: RefCell<FreePidList>,
@@ -112,8 +124,8 @@ struct IoTask {
     /// The max packet length configured for the connection.
     max_packet_len: usize,
 
-    /// The TCP stream connected to an MQTT broker.
-    stream: TcpStream,
+    /// The stream connected to an MQTT broker.
+    stream: AsyncStream,
 
     /// A buffer with data read from `stream`.
     read_buf: BytesMut,
@@ -173,17 +185,83 @@ struct IoResult {
     result: Result<Option<Packet>>,
 }
 
+/// A wrapper for the data connection, which may or may not be encrypted.
+enum AsyncStream {
+    TcpStream(TcpStream),
+    TlsStream(TlsStream<TcpStream>),
+}
+
+impl AsyncRead for AsyncStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8]
+    ) -> Poll<std::io::Result<usize>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_read(cx, buf),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for AsyncStream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &[u8]
+    ) -> Poll<std::result::Result<usize, tokio::io::Error>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_write(cx, buf),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context
+    ) -> Poll<std::result::Result<(), tokio::io::Error>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_flush(cx),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        cx: &mut Context
+    ) -> Poll<std::result::Result<(), tokio::io::Error>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_shutdown(cx),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_shutdown(cx),
+        }
+    }
+}
+
 impl Client {
     /// Start a fluent builder interface to construct a `Client`.
     pub fn builder() -> ClientBuilder {
         ClientBuilder::default()
     }
 
+    async fn connect_stream(&mut self) -> Result<AsyncStream> {
+        match self.tls_client_config {
+            Some(ref c) => {
+                let connector = TlsConnector::from(c.clone());
+                let domain = DNSNameRef::try_from_ascii_str(&*self.host)
+                                        .map_err(|e| Error::from_std_err(e))?;
+                let tcp = TcpStream::connect((&*self.host, self.port)).await?;
+                let conn = connector.connect(domain, tcp).await?;
+                Ok(AsyncStream::TlsStream(conn))
+            },
+            None => {
+                let tcp = TcpStream::connect((&*self.host, self.port)).await?;
+                Ok(AsyncStream::TcpStream(tcp))
+            }
+        }
+    }
+
     /// Open a connection to the configured MQTT broker.
     pub async fn connect(&mut self) -> Result<()> {
         self.check_disconnected()?;
-        let stream = TcpStream::connect((&*self.host, self.port))
-            .await?;
+        let stream = self.connect_stream().await?;
         let (tx_write_requests, rx_write_requests) =
             mpsc::channel::<IoRequest>(self.packet_buffer_len);
         // TODO: Change this to allow control messages, e.g. disconnected?
@@ -573,7 +651,7 @@ impl IoTask {
                     None => {
                         // Sender closed.
                         debug!("IoTask: Req stream closed, shutting down.");
-                        if let Err(e) = stream.shutdown(Shutdown::Both) {
+                        if let Err(e) = stream.shutdown().await {
                             error!("IoTask: Error shutting down TcpStream: {:?}", e);
                         }
                         return;
@@ -614,7 +692,7 @@ impl IoTask {
                             match req.io_type {
                                 IoType::Shutdown => {
                                     debug!("IoTask: IoType::Shutdown.");
-                                    if let Err(e) = stream.shutdown(Shutdown::Both) {
+                                    if let Err(e) = stream.shutdown().await {
                                         error!("IoTask: Error shutting down TcpStream: {:?}", e);
                                     }
                                     let res = IoResult { result: Ok(None) };
@@ -643,7 +721,7 @@ impl IoTask {
 
     async fn write_packet(
         p: &Packet,
-        stream: &mut TcpStream,
+        stream: &mut AsyncStream,
         max_packet_len: usize
     ) -> Result<()> {
         trace!("write_packet p={:#?}", p);
@@ -656,7 +734,7 @@ impl IoTask {
     }
 
     async fn read_packet(
-        stream: &mut TcpStream,
+        stream: &mut AsyncStream,
         read_buf: &mut BytesMut,
         read_bufn: &mut usize,
         max_packet_len: usize
