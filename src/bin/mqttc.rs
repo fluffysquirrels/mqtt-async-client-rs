@@ -52,7 +52,7 @@ struct Args {
     /// Enable TLS and set the path to a PEM file containing the
     /// CA certificate that signs the remote server's certificate.
     #[structopt(long)]
-    tls_ca_file: Option<String>,
+    tls_server_ca_file: Option<String>,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -150,7 +150,7 @@ fn client_from_args(args: Args) -> Result<Client> {
      .set_password(args.password.map(|s| s.as_bytes().to_vec()))
      .set_client_id(args.client_id);
 
-    if let Some(s) = args.tls_ca_file {
+    if let Some(s) = args.tls_server_ca_file {
         let mut cc = rustls::ClientConfig::new();
         let cert_bytes = std::fs::read(s)?;
         let cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
