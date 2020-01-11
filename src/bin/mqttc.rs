@@ -23,6 +23,7 @@ use mqtt_client::{
 use rustls;
 use std::io::Cursor;
 use structopt::StructOpt;
+use webpki_roots;
 
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
@@ -54,6 +55,11 @@ struct Args {
     /// CA certificate that signs the remote server's certificate.
     #[structopt(long)]
     tls_server_ca_file: Option<String>,
+
+    /// Enable TLS and trust the CA certificates in the webpki-roots
+    /// crate, ultimately Mozilla's root certificates.
+    #[structopt(long)]
+    tls_mozilla_root_cas: bool,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -159,6 +165,10 @@ fn client_from_args(args: Args) -> Result<Client> {
             .map_err(|_| Error::from("Error parsing cert file"))?[0].clone();
         cc.root_store.add(&cert)
             .map_err(|e| Error::from_std_err(e))?;
+        b.set_tls_client_config(cc);
+    } else if args.tls_mozilla_root_cas {
+        let mut cc = rustls::ClientConfig::new();
+        cc.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
         b.set_tls_client_config(cc);
     }
 

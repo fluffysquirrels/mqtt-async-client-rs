@@ -7,8 +7,6 @@
 * Enhancements for launch
 
 
-** TLS support for mqttc using a CA file.
-** TLS support for mqttc using webpki root certificates.
 ** Timeout on any RPC
 *** Timeout on Puback. Warn?
 *** Timeout on Suback. Warn?
@@ -23,9 +21,7 @@
 
 
 ** TLS
-   Including:
-   - Client uses CA cert to validate server
-   - Client certificate and key
+*** Client certificate and key
 ** Client connect sends clean session
 ** Client connect sends last will
 ** Publish retain flag
