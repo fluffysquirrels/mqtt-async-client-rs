@@ -261,6 +261,7 @@ impl Client {
     /// Open a connection to the configured MQTT broker.
     pub async fn connect(&mut self) -> Result<()> {
         self.check_disconnected()?;
+        debug!("Connecting to {}:{}", self.host, self.port);
         let stream = self.connect_stream().await?;
         let (tx_write_requests, rx_write_requests) =
             mpsc::channel::<IoRequest>(self.packet_buffer_len);
@@ -452,6 +453,7 @@ impl Client {
     /// Gracefully close the connection to the server.
     pub async fn disconnect(&mut self) -> Result<()> {
         self.check_connected()?;
+        debug!("Disconnecting");
         let p = Packet::Disconnect;
         self.write_only_packet(&p).await?;
         self.shutdown().await?;

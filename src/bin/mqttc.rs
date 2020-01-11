@@ -96,7 +96,7 @@ struct Subscribe {
 async fn main() {
     env_logger::init();
     let args = Args::from_args();
-    debug!("Args: {:#?}", args);
+    trace!("Args: {:#?}", args);
 
     let res = match args.cmd {
         Command::Publish(ref sub_args) => publish(sub_args.clone(), args.clone()).await,
