@@ -726,11 +726,15 @@ impl IoTask {
         stream: &mut AsyncStream,
         max_packet_len: usize
     ) -> Result<()> {
-        trace!("write_packet p={:#?}", p);
+        if cfg!(feature = "unsafe-logging") {
+            trace!("write_packet p={:#?}", p);
+        }
         // TODO: Test long packets.
         let mut bytes = BytesMut::with_capacity(max_packet_len);
         mqttrs::encode(&p, &mut bytes)?;
-        trace!("write_packet bytes p={:?}", &*bytes);
+        if cfg!(feature = "unsafe-logging") {
+            trace!("write_packet bytes p={:?}", &*bytes);
+        }
         stream.write_all(&*bytes).await?;
         Ok(())
     }
@@ -743,19 +747,25 @@ impl IoTask {
     ) -> Result<Packet> {
         // TODO: Test long packets.
         loop {
-            trace!("read_packet Decoding buf={:?}", &read_buf[0..*read_bufn]);
+            if cfg!(feature = "unsafe-logging") {
+                trace!("read_packet Decoding buf={:?}", &read_buf[0..*read_bufn]);
+            }
             if *read_bufn > 0 {
                 // We already have some bytes in the buffer. Try to decode a packet
                 read_buf.split_off(*read_bufn);
                 let old_len = read_buf.len();
                 let decoded = mqttrs::decode(read_buf)?;
-                trace!("read_packet decoded={:#?}", decoded);
+                if cfg!(feature = "unsafe-logging") {
+                    trace!("read_packet decoded={:#?}", decoded);
+                }
                 if let Some(p) = decoded {
                     let new_len = read_buf.len();
                     trace!("read_packet old_len={} new_len={} read_bufn={}",
                            old_len, new_len, *read_bufn);
                     *read_bufn -= old_len - new_len;
-                    trace!("read_packet Remaining buf={:?}", &read_buf[0..*read_bufn]);
+                    if cfg!(feature = "unsafe-logging") {
+                        trace!("read_packet Remaining buf={:?}", &read_buf[0..*read_bufn]);
+                    }
                     return Ok(p);
                 }
             }

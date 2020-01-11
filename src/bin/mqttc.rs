@@ -7,7 +7,8 @@ use futures_util::{
         StreamExt,
     },
 };
-use log::{debug, error, info};
+#[allow(unused_imports)]
+use log::{trace, debug, error, info};
 use mqtt_client::{
     client::{
         Client,
@@ -96,8 +97,9 @@ struct Subscribe {
 async fn main() {
     env_logger::init();
     let args = Args::from_args();
-    trace!("Args: {:#?}", args);
-
+    if cfg!(feature = "unsafe-logging") {
+        debug!("Args: {:#?}", args);
+    }
     let res = match args.cmd {
         Command::Publish(ref sub_args) => publish(sub_args.clone(), args.clone()).await,
         Command::Subscribe(ref sub_args) => subscribe(sub_args.clone(), args).await,

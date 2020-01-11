@@ -2,7 +2,11 @@
 //!
 //! For example usage see the command-line test app at
 //! `src/bin/mqttc.rs`, and integration tests at `tests/*.rs`.
-
+//!
+//! This crate uses the log crate. To enable extra, potentially
+//! sensitive logging (including passwords) enable the
+//! "unsafe-logging" Cargo feature. With "unsafe-logging" enabled at
+//! the "trace" log level every packet is logged.
 #![deny(warnings)]
 #![deny(missing_docs)]
 
