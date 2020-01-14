@@ -308,7 +308,6 @@ impl Client {
                                self.operation_timeout.as_millis()).into());
         }
         let connack = connack.expect("Not a timeout")?;
-        // TODO: timeout on CONNACK
         match connack {
             Packet::Connack(ca) => {
                 if ca.code != ConnectReturnCode::Accepted {
@@ -371,9 +370,16 @@ impl Client {
             pid: pid,
             topics: s.topics().to_owned(),
         });
-        let r = self.write_response_packet(&p).await?;
-        // TODO: Implement timeout.
-        match r {
+        let res = timeout(self.operation_timeout, self.write_response_packet(&p)).await;
+        if let Err(Elapsed { .. }) = res {
+            // We report this but can't really deal with it properly.
+            // The protocol says we can't re-use the packet ID so we have to leak it
+            // and potentially run out of packet IDs.
+            return Err(format!("Timeout waiting for Suback after {}ms",
+                               self.operation_timeout.as_millis()).into());
+        }
+        let res = res.expect("No timeout")?;
+        match res {
             Packet::Suback(mqttrs::Suback {
                 pid: suback_pid,
                 return_codes: rcs,
@@ -385,7 +391,7 @@ impl Client {
             },
             _ => {
                 return Err(format!("Unexpected packet waiting for Suback(Pid={:?}): {:#?}",
-                                   pid, r)
+                                   pid, res)
                            .into());
             }
         }
@@ -400,9 +406,16 @@ impl Client {
             topics: u.topics().iter().map(|ut| ut.topic_name().to_owned())
                      .collect::<Vec<String>>(),
         });
-        let r = self.write_response_packet(&p).await?;
-        // TODO: Implement timeout.
-        match r {
+        let res = timeout(self.operation_timeout, self.write_response_packet(&p)).await;
+        if let Err(Elapsed { .. }) = res {
+            // We report this but can't really deal with it properly.
+            // The protocol says we can't re-use the packet ID so we have to leak it
+            // and potentially run out of packet IDs.
+            return Err(format!("Timeout waiting for Unsuback after {}ms",
+                               self.operation_timeout.as_millis()).into());
+        }
+        let res = res.expect("No timeout")?;
+        match res {
             Packet::Unsuback(ack_pid)
             if ack_pid == pid => {
                 self.free_write_pid(pid)?;
@@ -410,7 +423,7 @@ impl Client {
             },
             _ => {
                 return Err(format!("Unexpected packet waiting for Unsuback(Pid={:?}): {:#?}",
-                                   pid, r)
+                                   pid, res)
                            .into());
             }
         }

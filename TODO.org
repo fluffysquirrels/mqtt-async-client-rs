@@ -9,9 +9,6 @@
 
 ** Timeout on any RPC
 *** Timeout on Puback. Warn?
-*** Timeout on Suback. Warn?
-*** Timeout on Unsuback. Warn?
-*** Timeout to write a no-response packet
 *** If a Client does not receive a PINGRESP Packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server.
 ** Automated tests
 *** Long packets, short packets
