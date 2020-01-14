@@ -585,6 +585,8 @@ enum SelectResult {
 
 impl IoTask {
     async fn run(mut self) {
+        // Unpack different pieces of state in one line so the borrow checker lets us
+        // have multiple mutable borrows.
         let IoTask {
             mut rx_write_requests,
             mut stream,
@@ -603,7 +605,21 @@ impl IoTask {
                 },
             };
 
-            let sel_res = {
+            // Select over 3 futures to determine what to do next:
+            // * Handle a write request from the Client
+            // * Handle a keep-alive timeout and send a ping request
+            // * Handle incoming data from the network
+            //
+            // From these futures we compute an enum value in sel_res
+            // that encapsulates what to do next, then match over
+            // sel_res to actually do the work. The reason for this
+            // structure is just to keep the borrow checker happy.
+            // The futures calculation uses a mutable borrow on `stream`
+            // for the `read_packet` call, but the mutable borrow ends there.
+            // Then when we want to do the work we can take a new, separate mutable
+            // borrow to write packets based on IO requests.
+            // These two mutable borrows don't overlap.
+            let sel_res: SelectResult = {
                 let mut req_fut = Box::pin(rx_write_requests.recv().fuse());
                 let mut read_fut = Box::pin(
                     Self::read_packet(&mut stream, &mut read_buf, &mut read_bufn,
@@ -702,7 +718,6 @@ impl IoTask {
                                 },
                                 IoType::WriteAndResponse { response_pid, .. } => {
                                     self.pid_response_map.insert(response_pid, req);
-                                    // TODO: Timeout.
                                 },
                                 IoType::WriteConnect { .. } => {
                                     self.connack_response = Some(req);
