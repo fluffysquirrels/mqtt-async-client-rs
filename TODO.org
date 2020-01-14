@@ -7,8 +7,6 @@
 * Enhancements for launch
 
 
-** Timeout on any RPC
-*** If a Client does not receive a PINGRESP Packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server.
 ** Automated tests
 *** Long packets, short packets
 

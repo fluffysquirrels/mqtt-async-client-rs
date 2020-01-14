@@ -124,6 +124,9 @@ struct IoTask {
     /// The max packet length configured for the connection.
     max_packet_len: usize,
 
+    /// The timeout configured for most operations.
+    operation_timeout: Duration,
+
     /// The stream connected to an MQTT broker.
     stream: AsyncStream,
 
@@ -281,6 +284,7 @@ impl Client {
         let io = IoTask {
             keep_alive: self.keep_alive,
             max_packet_len: self.max_packet_len,
+            operation_timeout: self.operation_timeout,
             stream,
             read_buf: BytesMut::with_capacity(self.max_packet_len),
             read_bufn: 0,
@@ -595,6 +599,9 @@ enum SelectResult {
 
     /// Time to send a keep-alive ping request packet.
     Ping,
+
+    /// Timeout waiting for a Pingresp.
+    PingrespExpected,
 }
 
 impl IoTask {
@@ -613,15 +620,21 @@ impl IoTask {
                 KeepAlive::Disabled => None,
                 KeepAlive::Enabled{ secs } => {
                     let dur = Duration::from_secs(*secs as u64);
-                    Some(self.last_write_time.checked_add(dur)
-                         .expect("time addition to succeed"))
+                    Some(self.last_write_time + dur)
                 },
+            };
+
+            let pingresp_expected_by = if self.last_pingreq_time > self.last_pingresp_time {
+                Some(self.last_pingreq_time + self.operation_timeout)
+            } else {
+                None
             };
 
             // Select over 3 futures to determine what to do next:
             // * Handle a write request from the Client
-            // * Handle a keep-alive timeout and send a ping request
-            // * Handle incoming data from the network
+            // * Handle an incoming packet from the network
+            // * Handle a keep-alive period elapsing and send a ping request
+            // * Handle a PingrespExpected timeout and disconnect
             //
             // From these futures we compute an enum value in sel_res
             // that encapsulates what to do next, then match over
@@ -641,10 +654,15 @@ impl IoTask {
                     Some(t) => Box::pin(delay_until(t).boxed().fuse()),
                     None => Box::pin(pending().boxed().fuse()),
                 };
+                let mut pingresp_expected_fut = match pingresp_expected_by {
+                    Some(t) => Box::pin(delay_until(t).boxed().fuse()),
+                    None => Box::pin(pending().boxed().fuse()),
+                };
                 select! {
-                    read = read_fut => SelectResult::Read(read),
                     req = req_fut => SelectResult::Req(req),
-                    ping = ping_fut => SelectResult::Ping,
+                    read = read_fut => SelectResult::Read(read),
+                    _ = ping_fut => SelectResult::Ping,
+                    _ = pingresp_expected_fut => SelectResult::PingrespExpected,
                 }
             };
             match sel_res {
@@ -705,7 +723,7 @@ impl IoTask {
                         // Sender closed.
                         debug!("IoTask: Req stream closed, shutting down.");
                         if let Err(e) = stream.shutdown().await {
-                            error!("IoTask: Error shutting down TcpStream: {:?}", e);
+                            error!("IoTask: Error shutting down stream: {:?}", e);
                         }
                         return;
                     },
@@ -745,7 +763,7 @@ impl IoTask {
                                 IoType::Shutdown => {
                                     debug!("IoTask: IoType::Shutdown.");
                                     if let Err(e) = stream.shutdown().await {
-                                        error!("IoTask: Error shutting down TcpStream: {:?}", e);
+                                        error!("IoTask: Error shutting down stream: {:?}", e);
                                     }
                                     let res = IoResult { result: Ok(None) };
                                     if let Err(e) = req.tx_result.send(res) {
@@ -768,6 +786,15 @@ impl IoTask {
                         error!("IoTask: Failed to write ping: {:?}", e);
                     }
                 },
+                SelectResult::PingrespExpected => {
+                    // We timed out waiting for a ping response from
+                    // the server, shutdown the stream.
+                    debug!("IoTask: Timed out waiting for Pingresp, shutting down.");
+                    if let Err(e) = stream.shutdown().await {
+                        error!("IoTask: Error shutting down stream: {:?}", e);
+                    }
+                    return;
+                }
             };
         }
     }
