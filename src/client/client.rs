@@ -577,21 +577,27 @@ fn packet_pid(p: &Packet) -> Option<Pid> {
     }
 }
 
+/// Represents what happened "next" that we should handle.
 enum SelectResult {
+    /// An IO request from the Client
     Req(Option<IoRequest>),
+
+    /// Read a packet from the network
     Read(Result<Packet>),
+
+    /// Time to send a keep-alive ping request packet.
     Ping,
 }
 
 impl IoTask {
     async fn run(mut self) {
         // Unpack different pieces of state in one line so the borrow checker lets us
-        // have multiple mutable borrows.
+        // have multiple mutable borrows into self.
         let IoTask {
-            mut rx_write_requests,
-            mut stream,
-            mut read_buf,
-            mut read_bufn,
+            mut rx_write_requests, // Used by req_fut
+            mut stream,            // Used by read_fut
+            mut read_buf,          // Used by read_fut
+            mut read_bufn,         // Used by read_fut
             ..
         } = self;
         loop {
