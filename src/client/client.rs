@@ -144,6 +144,12 @@ struct IoTask {
     /// Used to calculate when to send a Pingreq
     last_write_time: Instant,
 
+    /// The time the last Pingreq packet was written to `stream`.
+    last_pingreq_time: Instant,
+
+    /// The time the last Pingresp packet was read from `stream`.
+    last_pingresp_time: Instant,
+
     /// A map from response Pid to the IoRequest that initiated the
     /// request that will be responded to.
     pid_response_map: BTreeMap<Pid, IoRequest>,
@@ -281,6 +287,8 @@ impl Client {
             rx_write_requests,
             tx_recv_published,
             last_write_time: Instant::now(),
+            last_pingreq_time: Instant::now(),
+            last_pingresp_time: Instant::now(),
             pid_response_map: BTreeMap::new(),
             connack_response: None,
         };
@@ -651,7 +659,8 @@ impl IoTask {
                         Ok(p) => {
                             match p {
                                 Packet::Pingresp => {
-                                    debug!("IoTask: Ignoring Pingresp");
+                                    debug!("IoTask: Received Pingresp");
+                                    self.last_pingresp_time = Instant::now();
                                     continue
                                 },
                                 Packet::Publish(_) => {
@@ -752,6 +761,7 @@ impl IoTask {
                 SelectResult::Ping => {
                     debug!("IoTask: Writing Pingreq");
                     self.last_write_time = Instant::now();
+                    self.last_pingreq_time = Instant::now();
                     let p = Packet::Pingreq;
                     if let Err(e) = Self::write_packet(&p, &mut stream,
                                                        self.max_packet_len).await {
