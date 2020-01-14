@@ -347,10 +347,18 @@ impl Client {
         match qos {
             QoS::AtMostOnce => self.write_only_packet(&p2).await?,
             QoS::AtLeastOnce => {
-                let resp = self.write_response_packet(&p2).await?;
-                match resp {
+                let res = timeout(self.operation_timeout, self.write_response_packet(&p2)).await;
+                if let Err(Elapsed { .. }) = res {
+                    // We report this but can't really deal with it properly.
+                    // The protocol says we can't re-use the packet ID so we have to leak it
+                    // and potentially run out of packet IDs.
+                    return Err(format!("Timeout waiting for Puback after {}ms",
+                                       self.operation_timeout.as_millis()).into());
+                }
+                let res = res.expect("No timeout")?;
+                match res {
                     Packet::Puback(pid) => self.free_write_pid(pid)?,
-                    _ => error!("Bad packet response for publish: {:#?}", resp),
+                    _ => error!("Bad packet response for publish: {:#?}", res),
                 }
             },
             QoS::ExactlyOnce => panic!("Not reached"),
