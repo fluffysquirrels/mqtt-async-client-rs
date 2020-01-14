@@ -592,7 +592,6 @@ impl IoTask {
             mut stream,
             mut read_buf,
             mut read_bufn,
-            mut last_write_time,
             ..
         } = self;
         loop {
@@ -600,7 +599,7 @@ impl IoTask {
                 KeepAlive::Disabled => None,
                 KeepAlive::Enabled{ secs } => {
                     let dur = Duration::from_secs(*secs as u64);
-                    Some(last_write_time.checked_add(dur)
+                    Some(self.last_write_time.checked_add(dur)
                          .expect("time addition to succeed"))
                 },
             };
@@ -696,7 +695,7 @@ impl IoTask {
                         return;
                     },
                     Some(req) => {
-                        last_write_time = Instant::now();
+                        self.last_write_time = Instant::now();
                         let packet = req.io_type.packet();
                         if let Some(p) = packet {
                             let res = Self::write_packet(&p, &mut stream,
@@ -746,7 +745,7 @@ impl IoTask {
                 },
                 SelectResult::Ping => {
                     debug!("IoTask: Writing Pingreq");
-                    last_write_time = Instant::now();
+                    self.last_write_time = Instant::now();
                     let p = Packet::Pingreq;
                     if let Err(e) = Self::write_packet(&p, &mut stream,
                                                        self.max_packet_len).await {
