@@ -5,6 +5,7 @@ authors = ["Alex Helfet <alex.helfet@gmail.com>"]
 edition = "2018"
 license-file = "LICENSE"
 readme = "README.md"
+description = "An MQTT 3.1.1 client written in Rust, using async functions and tokio."
 
 [dependencies]
 bytes = "0.4.0"
