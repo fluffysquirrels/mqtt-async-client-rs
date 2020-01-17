@@ -6,6 +6,8 @@ An MQTT 3.1.1 client written in Rust, using async functions and tokio.
 * Documentation: <https://docs.rs/mqtt-async-client>
 * Cargo crate: <https://crates.io/crates/mqtt-async-client>
 
+Pull requests and Github issues welcome!
+
 ## To run automated tests
 
 Simply run `cargo test`.
