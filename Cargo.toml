@@ -1,5 +1,5 @@
 [package]
-name = "mqtt-client"
+name = "mqtt-async-client"
 version = "0.1.0"
 authors = ["Alex Helfet <alex.helfet@gmail.com>"]
 edition = "2018"

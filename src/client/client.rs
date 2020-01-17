@@ -76,7 +76,7 @@ use tokio_rustls::{
 /// then calling ClientBuilder::build(). For example:
 ///
 /// ```
-/// # use mqtt_client::client::Client;
+/// # use mqtt_async_client::client::Client;
 /// let client =
 ///     Client::builder()
 ///        .set_host("example.com".to_owned())

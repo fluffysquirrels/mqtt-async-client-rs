@@ -256,7 +256,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mqtt-client"
+name = "mqtt-async-client"
 version = "0.1.0"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",

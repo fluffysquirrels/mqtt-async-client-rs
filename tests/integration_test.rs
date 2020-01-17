@@ -15,7 +15,7 @@
 
 #![deny(warnings)]
 
-use mqtt_client::{
+use mqtt_async_client::{
     client::{
         Client,
         Publish,

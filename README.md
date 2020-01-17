@@ -1,6 +1,6 @@
-# mqtt-client-rs
+# mqtt-async-client-rs
 
-An MQTT 3.1.1 client written in Rust.
+An MQTT 3.1.1 client written in Rust, using async functions and tokio.
 
 ## To run automated tests
 

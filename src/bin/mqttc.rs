@@ -9,7 +9,7 @@ use futures_util::{
 };
 #[allow(unused_imports)]
 use log::{trace, debug, error, info};
-use mqtt_client::{
+use mqtt_async_client::{
     client::{
         Client,
         Publish as PublishOpts,
