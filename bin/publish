@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -ex
+
+REPO_DIR=$( cd $(dirname ${BASH_SOURCE[0]})/..; pwd )
+
+cd "${REPO_DIR}";
+rustup toolchain update stable;
+cargo +stable test;
+cargo +stable publish --verbose --manifest-path ${REPO_DIR}/Cargo.toml;
