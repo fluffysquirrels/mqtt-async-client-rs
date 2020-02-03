@@ -5,6 +5,7 @@ pub use builder::ClientBuilder;
 
 mod client;
 pub use client::Client;
+pub(crate) use client::ClientOptions;
 
 mod value_types;
 pub use value_types::{

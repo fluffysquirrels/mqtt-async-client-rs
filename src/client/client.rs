@@ -83,6 +83,13 @@ use tokio_rustls::{
 ///        .build();
 /// ```
 pub struct Client {
+    pub(crate) options: ClientOptions,
+    pub(crate) state: ConnectState,
+    pub(crate) free_write_pids: RefCell<FreePidList>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ClientOptions {
     pub(crate) host: String,
     pub(crate) port: u16,
     pub(crate) username: Option<String>,
@@ -95,8 +102,6 @@ pub struct Client {
     pub(crate) operation_timeout: Duration,
     pub(crate) tls_client_config: Option<Arc<rustls::ClientConfig>>,
 
-    pub(crate) state: ConnectState,
-    pub(crate) free_write_pids: RefCell<FreePidList>,
 }
 
 pub(crate) enum ConnectState {
@@ -118,14 +123,8 @@ pub(crate) struct ClientConnection {
 /// keep-alive ping packets, and sends response packets to tasks that
 /// are waiting.
 struct IoTask {
-    /// The keep-alive time configured for the connection.
-    keep_alive: KeepAlive,
-
-    /// The max packet length configured for the connection.
-    max_packet_len: usize,
-
-    /// The timeout configured for most operations.
-    operation_timeout: Duration,
+    /// Options configured for the client.
+    options: ClientOptions,
 
     /// The stream connected to an MQTT broker.
     stream: AsyncStream,
@@ -251,17 +250,18 @@ impl Client {
     }
 
     async fn connect_stream(&mut self) -> Result<AsyncStream> {
-        match self.tls_client_config {
+        debug!("Connecting to {}:{}", self.options.host, self.options.port);
+        match self.options.tls_client_config {
             Some(ref c) => {
                 let connector = TlsConnector::from(c.clone());
-                let domain = DNSNameRef::try_from_ascii_str(&*self.host)
+                let domain = DNSNameRef::try_from_ascii_str(&*self.options.host)
                                         .map_err(|e| Error::from_std_err(e))?;
-                let tcp = TcpStream::connect((&*self.host, self.port)).await?;
+                let tcp = TcpStream::connect((&*self.options.host, self.options.port)).await?;
                 let conn = connector.connect(domain, tcp).await?;
                 Ok(AsyncStream::TlsStream(conn))
             },
             None => {
-                let tcp = TcpStream::connect((&*self.host, self.port)).await?;
+                let tcp = TcpStream::connect((&*self.options.host, self.options.port)).await?;
                 Ok(AsyncStream::TcpStream(tcp))
             }
         }
@@ -270,23 +270,20 @@ impl Client {
     /// Open a connection to the configured MQTT broker.
     pub async fn connect(&mut self) -> Result<()> {
         self.check_disconnected()?;
-        debug!("Connecting to {}:{}", self.host, self.port);
         let stream = self.connect_stream().await?;
         let (tx_write_requests, rx_write_requests) =
-            mpsc::channel::<IoRequest>(self.packet_buffer_len);
+            mpsc::channel::<IoRequest>(self.options.packet_buffer_len);
         // TODO: Change this to allow control messages, e.g. disconnected?
         let (tx_recv_published, rx_recv_published) =
-            mpsc::channel::<Packet>(self.packet_buffer_len);
+            mpsc::channel::<Packet>(self.options.packet_buffer_len);
         self.state = ConnectState::Connected(ClientConnection {
             tx_write_requests,
             rx_recv_published,
         });
         let io = IoTask {
-            keep_alive: self.keep_alive,
-            max_packet_len: self.max_packet_len,
-            operation_timeout: self.operation_timeout,
+            options: self.options.clone(),
             stream,
-            read_buf: BytesMut::with_capacity(self.max_packet_len),
+            read_buf: BytesMut::with_capacity(self.options.max_packet_len),
             read_bufn: 0,
             rx_write_requests,
             tx_recv_published,
@@ -296,28 +293,28 @@ impl Client {
             pid_response_map: BTreeMap::new(),
             connack_response: None,
         };
-        self.runtime.spawn(io.run());
+        self.options.runtime.spawn(io.run());
 
         let conn = Packet::Connect(mqttrs::Connect {
             protocol: mqttrs::Protocol::MQTT311,
-            keep_alive: match self.keep_alive {
+            keep_alive: match self.options.keep_alive {
                 KeepAlive::Disabled => 0,
                 KeepAlive::Enabled { secs } => secs,
             },
-            client_id: match &self.client_id {
+            client_id: match &self.options.client_id {
                 None => "".to_owned(),
                 Some(cid) => cid.to_owned(),
             },
             clean_session: true, // TODO
             last_will: None, // TODO
-            username: self.username.clone(),
-            password: self.password.clone(),
+            username: self.options.username.clone(),
+            password: self.options.password.clone(),
         });
-        let connack = timeout(self.operation_timeout, self.write_connect(&conn)).await;
+        let connack = timeout(self.options.operation_timeout, self.write_connect(&conn)).await;
         if let Err(Elapsed { .. }) = connack {
             let _ = self.shutdown().await;
             return Err(format!("Timeout waiting for Connack after {}ms",
-                               self.operation_timeout.as_millis()).into());
+                               self.options.operation_timeout.as_millis()).into());
         }
         let connack = connack.expect("Not a timeout")?;
         match connack {
@@ -359,13 +356,13 @@ impl Client {
         match qos {
             QoS::AtMostOnce => self.write_only_packet(&p2).await?,
             QoS::AtLeastOnce => {
-                let res = timeout(self.operation_timeout, self.write_response_packet(&p2)).await;
+                let res = timeout(self.options.operation_timeout, self.write_response_packet(&p2)).await;
                 if let Err(Elapsed { .. }) = res {
                     // We report this but can't really deal with it properly.
                     // The protocol says we can't re-use the packet ID so we have to leak it
                     // and potentially run out of packet IDs.
                     return Err(format!("Timeout waiting for Puback after {}ms",
-                                       self.operation_timeout.as_millis()).into());
+                                       self.options.operation_timeout.as_millis()).into());
                 }
                 let res = res.expect("No timeout")?;
                 match res {
@@ -390,13 +387,13 @@ impl Client {
             pid: pid,
             topics: s.topics().to_owned(),
         });
-        let res = timeout(self.operation_timeout, self.write_response_packet(&p)).await;
+        let res = timeout(self.options.operation_timeout, self.write_response_packet(&p)).await;
         if let Err(Elapsed { .. }) = res {
             // We report this but can't really deal with it properly.
             // The protocol says we can't re-use the packet ID so we have to leak it
             // and potentially run out of packet IDs.
             return Err(format!("Timeout waiting for Suback after {}ms",
-                               self.operation_timeout.as_millis()).into());
+                               self.options.operation_timeout.as_millis()).into());
         }
         let res = res.expect("No timeout")?;
         match res {
@@ -426,13 +423,13 @@ impl Client {
             topics: u.topics().iter().map(|ut| ut.topic_name().to_owned())
                      .collect::<Vec<String>>(),
         });
-        let res = timeout(self.operation_timeout, self.write_response_packet(&p)).await;
+        let res = timeout(self.options.operation_timeout, self.write_response_packet(&p)).await;
         if let Err(Elapsed { .. }) = res {
             // We report this but can't really deal with it properly.
             // The protocol says we can't re-use the packet ID so we have to leak it
             // and potentially run out of packet IDs.
             return Err(format!("Timeout waiting for Unsuback after {}ms",
-                               self.operation_timeout.as_millis()).into());
+                               self.options.operation_timeout.as_millis()).into());
         }
         let res = res.expect("No timeout")?;
         match res {
@@ -616,7 +613,7 @@ impl IoTask {
 
     /// Unhandled errors are returned and terminate the run loop.
     async fn run_once(&mut self) -> Result<()> {
-        let keepalive_next = match &self.keep_alive {
+        let keepalive_next = match &self.options.keep_alive {
             KeepAlive::Disabled => None,
             KeepAlive::Enabled{ secs } => {
                 let dur = Duration::from_secs(*secs as u64);
@@ -625,7 +622,7 @@ impl IoTask {
         };
 
         let pingresp_expected_by = if self.last_pingreq_time > self.last_pingresp_time {
-            Some(self.last_pingreq_time + self.operation_timeout)
+            Some(self.last_pingreq_time + self.options.operation_timeout)
         } else {
             None
         };
@@ -649,7 +646,7 @@ impl IoTask {
             let mut req_fut = Box::pin(self.rx_write_requests.recv().fuse());
             let mut read_fut = Box::pin(
                 Self::read_packet(&mut self.stream, &mut self.read_buf, &mut self.read_bufn,
-                                  self.max_packet_len).fuse());
+                                  self.options.max_packet_len).fuse());
             let mut ping_fut = match keepalive_next {
                 Some(t) => Box::pin(delay_until(t).boxed().fuse()),
                 None => Box::pin(pending().boxed().fuse()),
@@ -813,7 +810,7 @@ impl IoTask {
             trace!("write_packet p={:#?}", p);
         }
         // TODO: Test long packets.
-        let mut bytes = BytesMut::with_capacity(self.max_packet_len);
+        let mut bytes = BytesMut::with_capacity(self.options.max_packet_len);
         mqttrs::encode(&p, &mut bytes)?;
         if cfg!(feature = "unsafe-logging") {
             trace!("write_packet bytes p={:?}", &*bytes);

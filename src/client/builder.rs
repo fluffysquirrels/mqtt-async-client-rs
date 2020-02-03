@@ -1,6 +1,7 @@
 use crate::{
     client::{
         Client,
+        ClientOptions,
         KeepAlive,
         client::ConnectState,
     },
@@ -40,24 +41,25 @@ impl ClientBuilder {
     /// Build a new `Client` with this configuration.
     pub fn build(&mut self) -> Result<Client> {
         Ok(Client {
-            host: match self.host {
-                Some(ref h) => h.clone(),
-                None => return Err("You must set a host to build a Client".into())
+            options: ClientOptions {
+                host: match self.host {
+                    Some(ref h) => h.clone(),
+                    None => return Err("You must set a host to build a Client".into())
+                },
+                port: self.port.unwrap_or(1883),
+                username: self.username.clone(),
+                password: self.password.clone(),
+                keep_alive: self.keep_alive.unwrap_or(KeepAlive::from_secs(30)),
+                runtime: self.runtime.clone(),
+                client_id: self.client_id.clone(),
+                packet_buffer_len: self.packet_buffer_len.unwrap_or(100),
+                max_packet_len: self.max_packet_len.unwrap_or(64 * 1024),
+                operation_timeout: self.operation_timeout.unwrap_or(Duration::from_secs(30)),
+                tls_client_config: match self.tls_client_config {
+                    Some(ref c) => Some(c.clone()),
+                    None => None,
+                },
             },
-            port: self.port.unwrap_or(1883),
-            username: self.username.clone(),
-            password: self.password.clone(),
-            keep_alive: self.keep_alive.unwrap_or(KeepAlive::from_secs(30)),
-            runtime: self.runtime.clone(),
-            client_id: self.client_id.clone(),
-            packet_buffer_len: self.packet_buffer_len.unwrap_or(100),
-            max_packet_len: self.max_packet_len.unwrap_or(64 * 1024),
-            operation_timeout: self.operation_timeout.unwrap_or(Duration::from_secs(30)),
-            tls_client_config: match self.tls_client_config {
-                Some(ref c) => Some(c.clone()),
-                None => None,
-            },
-
             state: ConnectState::Disconnected,
             free_write_pids: RefCell::new(FreePidList::new()),
         })
