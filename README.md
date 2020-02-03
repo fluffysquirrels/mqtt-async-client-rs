@@ -5,6 +5,7 @@ An MQTT 3.1.1 client written in Rust, using async functions and tokio.
 * Repository: <https://github.com/fluffysquirrels/mqtt-async-client-rs>
 * Documentation: <https://docs.rs/mqtt-async-client>
 * Cargo crate: <https://crates.io/crates/mqtt-async-client>
+* CI builds on Travis CI: <https://travis-ci.com/fluffysquirrels/mqtt-async-client-rs>
 
 Pull requests and Github issues welcome!
 
