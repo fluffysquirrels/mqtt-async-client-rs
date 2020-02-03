@@ -1,5 +1,5 @@
-dist: trusty
-sudo: false
+dist: bionic
+os: linux
 
 language: rust
 rust:
