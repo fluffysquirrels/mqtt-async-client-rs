@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -eu;
+
+# Run a build with a given toolchain.
+TC=${TC?Supply a toolchain in this environment variable}
+
+echo "Rust toolchain: ${TC}"
+
+REPO_DIR=$( cd $(dirname ${BASH_SOURCE[0]})/..; pwd )
+export CARGO_TARGET_DIR="${REPO_DIR}/target/build_local/${TC}"
+
+set -x;
+
+rustup self update;
+rustup toolchain update ${TC};
+
+cd ${REPO_DIR};
+
+cargo +${TC} build --verbose;
+
+# Don't run integration tests under CI yet, because that requires a
+# message broker, currently missing.
+cargo +${TC} test --verbose --lib;
+cargo +${TC} test --verbose --doc;
+
+cargo +${TC} doc --verbose --no-deps;

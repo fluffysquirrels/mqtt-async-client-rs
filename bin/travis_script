@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -eu;
+
+REPO_DIR=$( cd $(dirname ${BASH_SOURCE[0]})/..; pwd )
+
+TC="${TRAVIS_RUST_VERSION}" ${REPO_DIR}/bin/build_tc
