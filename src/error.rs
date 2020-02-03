@@ -33,7 +33,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> std::result::Result<(), fmt::Error> {
         match self {
             Error::Disconnected => write!(f, "Disconnected"),
-            Error::StdError(e) => write!(f, "{}", e.description()),
+            Error::StdError(e) => write!(f, "{}", e),
             Error::String(s) => write!(f, "{}", s),
             Error::_NonExhaustive => panic!("Not reachable"),
         }
