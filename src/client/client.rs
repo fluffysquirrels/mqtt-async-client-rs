@@ -83,9 +83,9 @@ use tokio_rustls::{
 ///        .build();
 /// ```
 pub struct Client {
-    pub(crate) options: ClientOptions,
-    pub(crate) state: ConnectState,
-    pub(crate) free_write_pids: RefCell<FreePidList>,
+    options: ClientOptions,
+    state: ConnectState,
+    free_write_pids: RefCell<FreePidList>,
 }
 
 #[derive(Clone)]
@@ -247,6 +247,14 @@ impl Client {
     /// Start a fluent builder interface to construct a `Client`.
     pub fn builder() -> ClientBuilder {
         ClientBuilder::default()
+    }
+
+    pub(crate) fn new(opts: ClientOptions) -> Result<Client> {
+        Ok(Client {
+            options: opts,
+            state: ConnectState::Disconnected,
+            free_write_pids: RefCell::new(FreePidList::new()),
+        })
     }
 
     async fn connect_stream(&mut self) -> Result<AsyncStream> {

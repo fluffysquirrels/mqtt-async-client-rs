@@ -3,19 +3,14 @@ use crate::{
         Client,
         ClientOptions,
         KeepAlive,
-        client::ConnectState,
     },
     Result,
     util::{
-        FreePidList,
         TokioRuntime,
     }
 };
 use rustls;
-use std::{
-    cell::RefCell,
-    sync::Arc,
-};
+use std::sync::Arc;
 use tokio::time::Duration;
 
 /// A fluent builder interface to configure a Client.
@@ -40,8 +35,8 @@ pub struct ClientBuilder {
 impl ClientBuilder {
     /// Build a new `Client` with this configuration.
     pub fn build(&mut self) -> Result<Client> {
-        Ok(Client {
-            options: ClientOptions {
+        Client::new(
+            ClientOptions {
                 host: match self.host {
                     Some(ref h) => h.clone(),
                     None => return Err("You must set a host to build a Client".into())
@@ -59,10 +54,7 @@ impl ClientBuilder {
                     Some(ref c) => Some(c.clone()),
                     None => None,
                 },
-            },
-            state: ConnectState::Disconnected,
-            free_write_pids: RefCell::new(FreePidList::new()),
-        })
+            })
     }
 
     /// Set host to connect to. This is a required parameter.
