@@ -1,0 +1,62 @@
+use tokio::{
+    io::{
+        AsyncRead,
+        AsyncWrite,
+    },
+    net::TcpStream,
+};
+use tokio_rustls::client::TlsStream;
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+/// A wrapper for the data connection, which may or may not be encrypted.
+pub(crate) enum AsyncStream {
+    TcpStream(TcpStream),
+    TlsStream(TlsStream<TcpStream>),
+}
+
+impl AsyncRead for AsyncStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8]
+    ) -> Poll<std::io::Result<usize>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_read(cx, buf),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for AsyncStream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &[u8]
+    ) -> Poll<std::result::Result<usize, tokio::io::Error>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_write(cx, buf),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context
+    ) -> Poll<std::result::Result<(), tokio::io::Error>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_flush(cx),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        cx: &mut Context
+    ) -> Poll<std::result::Result<(), tokio::io::Error>> {
+        match Pin::get_mut(self) {
+            AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_shutdown(cx),
+            AsyncStream::TlsStream(tls) => Pin::new(tls).poll_shutdown(cx),
+        }
+    }
+}
