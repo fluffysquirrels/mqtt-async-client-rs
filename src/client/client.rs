@@ -249,21 +249,7 @@ impl Client {
         };
         self.options.runtime.spawn(io.run());
 
-        let conn = Packet::Connect(mqttrs::Connect {
-            protocol: mqttrs::Protocol::MQTT311,
-            keep_alive: match self.options.keep_alive {
-                KeepAlive::Disabled => 0,
-                KeepAlive::Enabled { secs } => secs,
-            },
-            client_id: match &self.options.client_id {
-                None => "".to_owned(),
-                Some(cid) => cid.to_owned(),
-            },
-            clean_session: true, // TODO
-            last_will: None, // TODO
-            username: self.options.username.clone(),
-            password: self.options.password.clone(),
-        });
+        let conn = connect_packet(&self.options)?;
         let connack = timeout(self.options.operation_timeout, self.write_connect(&conn)).await;
         if let Err(Elapsed { .. }) = connack {
             let _ = self.shutdown().await;
@@ -521,6 +507,25 @@ impl Client {
     }
 }
 
+/// Build a connect packet from ClientOptions.
+fn connect_packet(opts: &ClientOptions) -> Result<Packet> {
+    Ok(Packet::Connect(mqttrs::Connect {
+        protocol: mqttrs::Protocol::MQTT311,
+        keep_alive: match opts.keep_alive {
+            KeepAlive::Disabled => 0,
+            KeepAlive::Enabled { secs } => secs,
+        },
+        client_id: match &opts.client_id {
+            None => "".to_owned(),
+            Some(cid) => cid.to_owned(),
+        },
+        clean_session: true, // TODO
+        last_will: None, // TODO
+        username: opts.username.clone(),
+        password: opts.password.clone(),
+    }))
+}
+
 fn packet_pid(p: &Packet) -> Option<Pid> {
     match p {
         Packet::Connect(_) => None,
@@ -618,7 +623,7 @@ impl IoTask {
         };
         match sel_res {
             SelectResult::Read(read) => return self.handle_read(read).await,
-            SelectResult::IoReq(req) => match req{
+            SelectResult::IoReq(req) => match req {
                 None => {
                     // Sender closed.
                     debug!("IoTask: Req stream closed, shutting down.");
