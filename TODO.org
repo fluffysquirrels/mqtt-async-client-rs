@@ -10,7 +10,6 @@
 *** Long packets, short packets
 ** TLS
 *** Client certificate and key
-** Automatic reconnect
 ** Offline buffering
 *** Queue outbound publishes in progress and retry with dup=1 after reconnect.
 ** Client connect sends clean session
