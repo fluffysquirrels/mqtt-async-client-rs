@@ -40,7 +40,10 @@ use rustls;
 use std::{
     cell::RefCell,
     collections::BTreeMap,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use tokio::{
     io::{
@@ -81,13 +84,20 @@ use tokio_rustls::{
 ///        .build();
 /// ```
 pub struct Client {
+    /// Options configured for the client
     options: ClientOptions,
+
+    /// Handle values to communicate with the IO task
     io_task_handle: Option<IoTaskHandle>,
+
+    /// Tracks which Pids (MQTT packet IDs) are in use
     free_write_pids: RefCell<FreePidList>,
 }
 
 #[derive(Clone)]
 pub(crate) struct ClientOptions {
+    // See ClientBuilder methods for per-field documentation.
+
     pub(crate) host: String,
     pub(crate) port: u16,
     pub(crate) username: Option<String>,
@@ -110,6 +120,9 @@ struct IoTaskHandle {
 
     /// Receiver to receive Publish packets from the IO task.
     rx_recv_published: mpsc::Receiver<Packet>,
+
+    /// Signal to the IO task to shutdown. Shared with IoTask.
+    halt: Arc<AtomicBool>,
 }
 
 /// The state held by the IO task, a long-running tokio future. The IO
@@ -132,6 +145,9 @@ struct IoTask {
     /// Keeps track of active subscriptions in case they need to be
     /// replayed after reconnecting.
     subscriptions: BTreeMap<String, QoS>,
+
+    /// Signal to the IO task to shutdown. Shared with IoTaskHandle.
+    halt: Arc<AtomicBool>,
 }
 
 enum IoTaskState {
@@ -225,9 +241,11 @@ impl Client {
         // TODO: Change this to allow control messages, e.g. disconnected?
         let (tx_recv_published, rx_recv_published) =
             mpsc::channel::<Packet>(self.options.packet_buffer_len);
+        let halt = Arc::new(AtomicBool::new(false));
         self.io_task_handle = Some(IoTaskHandle {
             tx_io_requests,
             rx_recv_published,
+            halt: halt.clone(),
         });
         let io = IoTask {
             options: self.options.clone(),
@@ -235,6 +253,7 @@ impl Client {
             tx_recv_published,
             state: IoTaskState::Disconnected,
             subscriptions: BTreeMap::new(),
+            halt: halt,
         };
         self.options.runtime.spawn(io.run());
         Ok(())
@@ -402,7 +421,13 @@ impl Client {
         self.check_io_task()?;
         debug!("Disconnecting");
         let p = Packet::Disconnect;
-        self.write_only_packet(&p).await?;
+        let res = timeout(self.options.operation_timeout,
+                          self.write_only_packet(&p)).await;
+        if let Err(Elapsed { .. }) = res {
+            return Err(format!("Timeout waiting for Disconnect to send after {}ms",
+                               self.options.operation_timeout.as_millis()).into());
+        }
+        res.expect("No timeout")?;
         self.shutdown().await?;
         Ok(())
     }
@@ -422,7 +447,8 @@ impl Client {
     }
 
     async fn shutdown(&mut self) -> Result <()> {
-        let _c = self.check_io_task()?;
+        let c = self.check_io_task()?;
+        c.halt.store(true, Ordering::SeqCst);
         self.write_request(IoType::ShutdownConnection).await?;
         self.io_task_handle = None;
         Ok(())
@@ -561,6 +587,12 @@ enum SelectResult {
 impl IoTask {
     async fn run(mut self) {
         loop {
+            if self.halt.load(Ordering::SeqCst) {
+                self.shutdown_conn().await;
+                debug!("IoTask: halting.");
+                return;
+            }
+
             match self.state {
                 IoTaskState::Disconnected =>
                     match Self::try_connect(&mut self).await {
@@ -640,28 +672,28 @@ impl IoTask {
         match res {
             Ok(()) => Ok(()),
             Err(e) => {
-                if let Err(eshutdown) = self.shutdown().await {
-                    error!("IoTask: Error on shutdown cleanup in try_connect: {:?}", eshutdown);
-                }
+                self.shutdown_conn().await;
                 Err(e)
             },
         }
     }
 
-    async fn shutdown(&mut self) -> Result<()> {
-        debug!("IoTask: shutdown");
+    /// Shutdown the network connection to the MQTT broker.
+    ///
+    /// Logs and swallows errors.
+    async fn shutdown_conn(&mut self) {
+        debug!("IoTask: shutdown_conn");
         let c = match self.state {
             // Already disconnected, nothing more to do.
-            IoTaskState::Disconnected => return Ok(()),
+            IoTaskState::Disconnected => return,
 
             IoTaskState::Connected(ref mut c) => c,
         };
 
         if let Err(e) = c.stream.shutdown().await {
-            error!("IoTask: Error on stream shutdown in shutdown: {:?}", e);
+            error!("IoTask: Error on stream shutdown in shutdown_conn: {:?}", e);
         }
         self.state = IoTaskState::Disconnected;
-        Ok(())
     }
 
     async fn replay_subscriptions(&mut self) -> Result<()> {
@@ -747,9 +779,7 @@ impl IoTask {
                 None => {
                     // Sender closed.
                     debug!("IoTask: Req stream closed, shutting down.");
-                    if let Err(e) = self.shutdown().await {
-                        error!("IoTask: Error shutting down stream: {:?}", e);
-                    }
+                    self.shutdown_conn().await;
                     return Err(Error::Disconnected);
                 },
                 Some(req) => return self.handle_io_req(req).await,
@@ -759,9 +789,7 @@ impl IoTask {
                 // We timed out waiting for a ping response from
                 // the server, shutdown the stream.
                 debug!("IoTask: Timed out waiting for Pingresp, shutting down.");
-                if let Err(e) = self.shutdown().await {
-                    error!("IoTask: Error shutting down stream: {:?}", e);
-                }
+                self.shutdown_conn().await;
                 return Err(Error::Disconnected);
             }
         }
@@ -793,7 +821,7 @@ impl IoTask {
                     },
                     Packet::Connack(_) => {
                         error!("IoTask: Unexpected CONNACK in handle_read(): {:?}", p);
-                        let _ = self.shutdown().await;
+                        self.shutdown_conn().await;
                         return Err(Error::Disconnected);
                     }
                     _ => {
@@ -857,7 +885,7 @@ impl IoTask {
                     c.pid_response_map.insert(response_pid, req);
                 },
                 IoType::ShutdownConnection => {
-                    panic!("Not reached because shutdown has no packet")
+                    panic!("Not reached because ShutdownConnection has no packet")
                 },
                 IoType::_Connect => {
                     panic!("Not reached because Connect has no packet");
@@ -867,9 +895,7 @@ impl IoTask {
             match req.io_type {
                 IoType::ShutdownConnection => {
                     debug!("IoTask: IoType::ShutdownConnection.");
-                    if let Err(e) = self.shutdown().await {
-                        error!("IoTask: Error shutting down stream: {:?}", e);
-                    }
+                    self.shutdown_conn().await;
                     let res = IoResult { result: Ok(None) };
                     Self::send_io_result(req, res)?;
                     return Err(Error::Disconnected);
