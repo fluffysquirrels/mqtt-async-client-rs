@@ -31,6 +31,10 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
+### 0.1.3
+
+Added timeouts to disconnect, and publish when QoS=0.
+
 ### 0.1.2
 
 Enable automatic reconnects by default.
