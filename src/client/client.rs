@@ -189,7 +189,7 @@ enum IoType {
     _Connect,
 
     /// A request to shut down the TCP connection gracefully.
-    Shutdown,
+    ShutdownConnection,
 }
 
 /// The result of an IO request sent by the IO task, which may contain a packet.
@@ -423,7 +423,7 @@ impl Client {
 
     async fn shutdown(&mut self) -> Result <()> {
         let _c = self.check_io_task()?;
-        self.write_request(IoType::Shutdown).await?;
+        self.write_request(IoType::ShutdownConnection).await?;
         self.io_task_handle = None;
         Ok(())
     }
@@ -856,7 +856,7 @@ impl IoTask {
                 IoType::WriteAndResponse { response_pid, .. } => {
                     c.pid_response_map.insert(response_pid, req);
                 },
-                IoType::Shutdown => {
+                IoType::ShutdownConnection => {
                     panic!("Not reached because shutdown has no packet")
                 },
                 IoType::_Connect => {
@@ -865,8 +865,8 @@ impl IoTask {
             }
         } else {
             match req.io_type {
-                IoType::Shutdown => {
-                    debug!("IoTask: IoType::Shutdown.");
+                IoType::ShutdownConnection => {
+                    debug!("IoTask: IoType::ShutdownConnection.");
                     if let Err(e) = self.shutdown().await {
                         error!("IoTask: Error shutting down stream: {:?}", e);
                     }
@@ -974,7 +974,7 @@ impl IoTask {
 impl IoType {
     fn packet(&self) -> Option<&Packet> {
         match self {
-            IoType::Shutdown => None,
+            IoType::ShutdownConnection => None,
             IoType::WriteOnly { packet } => Some(&packet),
             IoType::WriteAndResponse { packet, .. } => Some(&packet),
             IoType::_Connect => None,
