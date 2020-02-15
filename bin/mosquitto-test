@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -eux;
+
+readonly pkg_dir="$( cd $(dirname ${BASH_SOURCE})/..; pwd )";
+
+cd "${pkg_dir}/tests";
+mosquitto -c mosquitto.conf;
