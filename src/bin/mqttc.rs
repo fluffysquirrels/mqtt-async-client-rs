@@ -12,6 +12,7 @@ use log::{trace, debug, error, info};
 use mqtt_async_client::{
     client::{
         Client,
+        KeepAlive,
         Publish as PublishOpts,
         QoS,
         Subscribe as SubscribeOpts,
@@ -61,6 +62,14 @@ struct Args {
     /// crate, ultimately Mozilla's root certificates.
     #[structopt(long)]
     tls_mozilla_root_cas: bool,
+
+    /// Keepalive interval in seconds
+    #[structopt(long, default_value("30"))]
+    keep_alive: u16,
+
+    /// Operation timeout in seconds
+    #[structopt(long, default_value("30"))]
+    op_timeout: u16,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -158,7 +167,9 @@ fn client_from_args(args: Args) -> Result<Client> {
      .set_username(args.username)
      .set_password(args.password.map(|s| s.as_bytes().to_vec()))
      .set_client_id(args.client_id)
-     .set_connect_retry_delay(Duration::from_secs(1));
+     .set_connect_retry_delay(Duration::from_secs(1))
+     .set_keep_alive(KeepAlive::from_secs(args.keep_alive))
+     .set_operation_timeout(Duration::from_secs(args.op_timeout as u64));
 
     if let Some(s) = args.tls_server_ca_file {
         let mut cc = rustls::ClientConfig::new();
