@@ -4,6 +4,7 @@ use mqttrs::{
     SubscribeReturnCodes,
     SubscribeTopic,
 };
+use tokio::time::Duration;
 
 /// Arguments for a publish operation.
 #[derive(Clone, Debug)]
@@ -171,5 +172,32 @@ impl KeepAlive {
     /// Disable keep alive functionality.
     pub fn disabled() -> KeepAlive {
         KeepAlive::Disabled
+    }
+
+    /// Returns whether keep alives are enabled.
+    pub fn is_enabled(&self) -> bool {
+        match self {
+            KeepAlive::Disabled => false,
+            KeepAlive::Enabled { .. } => true,
+        }
+    }
+
+    /// Returns whether keep alives are disabled.
+    pub fn is_disabled(&self) -> bool {
+        match self {
+            KeepAlive::Disabled => true,
+            KeepAlive::Enabled { .. } => false,
+        }
+    }
+
+    /// Returns the keep alive interval if enabled as Some(tokio::Duration),
+    /// or None if disabled.
+    pub fn as_duration(&self) -> Option<Duration> {
+        match self {
+            KeepAlive::Disabled => None,
+            KeepAlive::Enabled { secs } => {
+                Some(Duration::from_secs(*secs as u64))
+            },
+        }
     }
 }

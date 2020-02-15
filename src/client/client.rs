@@ -39,6 +39,7 @@ use mqttrs::{
 use rustls;
 use std::{
     cell::RefCell,
+    cmp::min,
     collections::BTreeMap,
     sync::{
         Arc,
@@ -724,19 +725,22 @@ impl IoTask {
             IoTaskState::Connected(ref mut c) => c,
             _ => panic!("Not reached"),
         };
-        let keepalive_next = match &self.options.keep_alive {
-            KeepAlive::Disabled => None,
-            KeepAlive::Enabled{ secs } => {
-                let dur = Duration::from_secs(*secs as u64);
-                Some(c.last_write_time + dur)
-            },
-        };
+        let pingreq_next = self.options.keep_alive.as_duration()
+            .map(|dur| c.last_write_time + dur);
 
-        let pingresp_expected_by = if c.last_pingreq_time > c.last_pingresp_time {
-            Some(c.last_pingreq_time + self.options.operation_timeout)
-        } else {
-            None
-        };
+        let pingresp_expected_by =
+            if self.options.keep_alive.is_enabled() &&
+                c.last_pingreq_time > c.last_pingresp_time
+            {
+                // Expect a ping response before the operation timeout and the keepalive interval.
+                // If the keepalive interval expired first then the "next operation" as
+                // returned by SelectResult below would be Ping even when Pingresp is expected,
+                // and we would never time out the connection.
+                let ka = self.options.keep_alive.as_duration().expect("enabled");
+                Some(c.last_pingreq_time + min(self.options.operation_timeout, ka))
+            } else {
+                None
+            };
 
         // Select over futures to determine what to do next:
         // * Handle a write request from the Client
@@ -758,7 +762,7 @@ impl IoTask {
             let mut read_fut = Box::pin(
                 Self::read_packet(&mut c.stream, &mut c.read_buf, &mut c.read_bufn,
                                   self.options.max_packet_len).fuse());
-            let mut ping_fut = match keepalive_next {
+            let mut ping_fut = match pingreq_next {
                 Some(t) => Box::pin(delay_until(t).boxed().fuse()),
                 None => Box::pin(pending().boxed().fuse()),
             };
