@@ -31,6 +31,10 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
+### 0.1.3 - UNRELEASED
+
+Missing ping responses should cause a disconnect even when keepalive > op timeout
+
 ### 0.1.3
 
 Added timeouts to disconnect, and publish when QoS=0.
