@@ -30,6 +30,8 @@ pub struct ClientBuilder {
     max_packet_len: Option<usize>,
     operation_timeout: Option<Duration>,
     tls_client_config: Option<Arc<rustls::ClientConfig>>,
+    automatic_connect: Option<bool>,
+    connect_retry_delay: Option<Duration>,
 }
 
 impl ClientBuilder {
@@ -54,6 +56,8 @@ impl ClientBuilder {
                     Some(ref c) => Some(c.clone()),
                     None => None,
                 },
+                automatic_connect: self.automatic_connect.unwrap_or(true),
+                connect_retry_delay: self.connect_retry_delay.unwrap_or(Duration::from_secs(30)),
             })
     }
 
@@ -141,6 +145,22 @@ impl ClientBuilder {
     /// Enables TLS. By default TLS is disabled.
     pub fn set_tls_client_config(&mut self, tls_client_config: rustls::ClientConfig) -> &mut Self {
         self.tls_client_config = Some(Arc::new(tls_client_config));
+        self
+    }
+
+    /// Set whether to automatically connect and reconnect.
+    ///
+    /// The default is true.
+    pub fn set_automatic_connect(&mut self, automatic_connect: bool) -> &mut Self {
+        self.automatic_connect = Some(automatic_connect);
+        self
+    }
+
+    /// Set the delay between connect retries.
+    ///
+    /// The default is 30s.
+    pub fn set_connect_retry_delay(&mut self, connect_retry_delay: Duration) -> &mut Self {
+        self.connect_retry_delay = Some(connect_retry_delay);
         self
     }
 }

@@ -23,6 +23,7 @@ use mqtt_async_client::{
 use rustls;
 use std::io::Cursor;
 use structopt::StructOpt;
+use tokio::time::Duration;
 use webpki_roots;
 
 #[derive(Clone, Debug, StructOpt)]
@@ -156,7 +157,8 @@ fn client_from_args(args: Args) -> Result<Client> {
      .set_port(args.port)
      .set_username(args.username)
      .set_password(args.password.map(|s| s.as_bytes().to_vec()))
-     .set_client_id(args.client_id);
+     .set_client_id(args.client_id)
+     .set_connect_retry_delay(Duration::from_secs(1));
 
     if let Some(s) = args.tls_server_ca_file {
         let mut cc = rustls::ClientConfig::new();

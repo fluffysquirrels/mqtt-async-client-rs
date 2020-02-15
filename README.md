@@ -28,3 +28,11 @@ to publish payload `payload` to topic `topic`.
 
 Run `RUST_LOG="info" cargo run --bin mqttc -- --host localhost subscribe topic`
 to subscribe to topic `topic` and print any messages that are published to it.
+
+## Changelog
+
+### 0.1.1 - Unreleased
+
+Enable automatic reconnects by default.
+
+This tracks subscriptions and replays them after reconnecting. No publish retries yet.
