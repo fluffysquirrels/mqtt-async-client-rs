@@ -31,7 +31,7 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
-### 0.1.1 - Unreleased
+### 0.1.2
 
 Enable automatic reconnects by default.
 
