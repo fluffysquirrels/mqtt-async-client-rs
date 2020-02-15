@@ -262,9 +262,18 @@ impl Client {
             payload: p.payload().to_owned(),
         });
         match qos {
-            QoS::AtMostOnce => self.write_only_packet(&p2).await?,
+            QoS::AtMostOnce => {
+                let res = timeout(self.options.operation_timeout,
+                                  self.write_only_packet(&p2)).await;
+                if let Err(Elapsed { .. }) = res {
+                    return Err(format!("Timeout writing publish after {}ms",
+                                       self.options.operation_timeout.as_millis()).into());
+                }
+                res.expect("No timeout")?;
+            }
             QoS::AtLeastOnce => {
-                let res = timeout(self.options.operation_timeout, self.write_response_packet(&p2)).await;
+                let res = timeout(self.options.operation_timeout,
+                                  self.write_response_packet(&p2)).await;
                 if let Err(Elapsed { .. }) = res {
                     // We report this but can't really deal with it properly.
                     // The protocol says we can't re-use the packet ID so we have to leak it
