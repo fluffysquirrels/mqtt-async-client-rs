@@ -134,7 +134,12 @@ async fn publish(pub_args: Publish, args: Args) -> Result<()> {
         client.publish(&p)
     });
     let futs: FuturesUnordered<_> = futs.collect();
-    futs.collect::<Vec<_>>().await;
+    let results_fut = futs.collect::<Vec<Result<()>>>();
+    for res in results_fut.await {
+        if let Err(e) = res {
+            error!("Error publishing: {}", e);
+        }
+    }
     info!("Published topic={}, message={}", pub_args.topic, pub_args.message);
     client.disconnect().await?;
     Ok(())
