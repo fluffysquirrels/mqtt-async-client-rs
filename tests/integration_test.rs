@@ -29,7 +29,10 @@ use mqtt_async_client::{
     Result,
 };
 use rustls;
-use std::io::Cursor;
+use std::{
+    io::Cursor,
+    sync::Once,
+};
 use tokio::{
     self,
     time::{
@@ -40,6 +43,7 @@ use tokio::{
 
 #[test]
 fn pub_and_sub_plain() -> Result<()> {
+    init_logger();
     let mut rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         let mut c = plain_client()?;
@@ -61,12 +65,14 @@ fn pub_and_sub_plain() -> Result<()> {
         let r = c.read_subscriptions().await?;
         assert_eq!(r.topic(), "test/pub_and_sub");
         assert_eq!(r.payload(), b"x");
+        c.disconnect().await?;
         Ok(())
     })
 }
 
 #[test]
 fn pub_and_sub_tls() -> Result<()> {
+    init_logger();
     let mut rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         let mut c = tls_client()?;
@@ -88,12 +94,14 @@ fn pub_and_sub_tls() -> Result<()> {
         let r = c.read_subscriptions().await?;
         assert_eq!(r.topic(), "test/pub_and_sub_tls");
         assert_eq!(r.payload(), b"x");
+        c.disconnect().await?;
         Ok(())
     })
 }
 
 #[test]
 fn unsubscribe() -> Result<()> {
+    init_logger();
     let mut rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         let mut c = tls_client()?;
@@ -119,6 +127,7 @@ fn unsubscribe() -> Result<()> {
         // Read from "a" and timeout.
         let r = timeout(Duration::from_secs(3), c.read_subscriptions()).await;
         assert!(r.is_err());
+        c.disconnect().await?;
         Ok(())
     })
 }
@@ -134,6 +143,7 @@ fn tls_client() -> Result<Client> {
         .set_host("localhost".to_owned())
         .set_port(8883)
         .set_tls_client_config(cc)
+        .set_connect_retry_delay(Duration::from_secs(1))
         .build()
 }
 
@@ -142,5 +152,12 @@ fn plain_client() -> Result<Client> {
     Client::builder()
         .set_host("localhost".to_owned())
         .set_port(1883)
+        .set_connect_retry_delay(Duration::from_secs(1))
         .build()
+}
+
+static LOGGER_INIT: Once = Once::new();
+
+fn init_logger() {
+    LOGGER_INIT.call_once(|| env_logger::init());
 }
