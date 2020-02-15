@@ -8,6 +8,7 @@
 
     `git tag vX.Y.Z && git push --tags`
 
+1. Check build on travis CI: <https://travis-ci.com/fluffysquirrels/mqtt-async-client-rs>
 1. Publish with `bin/publish`.
 1. Check new version appears on
    [![Crate](https://img.shields.io/crates/v/mqtt-async-client.svg)][crates]
