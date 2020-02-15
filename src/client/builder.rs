@@ -51,7 +51,7 @@ impl ClientBuilder {
                 client_id: self.client_id.clone(),
                 packet_buffer_len: self.packet_buffer_len.unwrap_or(100),
                 max_packet_len: self.max_packet_len.unwrap_or(64 * 1024),
-                operation_timeout: self.operation_timeout.unwrap_or(Duration::from_secs(30)),
+                operation_timeout: self.operation_timeout.unwrap_or(Duration::from_secs(20)),
                 tls_client_config: match self.tls_client_config {
                     Some(ref c) => Some(c.clone()),
                     None => None,
@@ -134,7 +134,7 @@ impl ClientBuilder {
 
     /// Set the timeout for operations.
     ///
-    /// The default is 30 seconds.
+    /// The default is 20 seconds.
     pub fn set_operation_timeout(&mut self, operation_timeout: Duration) -> &mut Self {
         self.operation_timeout = Some(operation_timeout);
         self

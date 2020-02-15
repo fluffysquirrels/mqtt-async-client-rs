@@ -68,7 +68,7 @@ struct Args {
     keep_alive: u16,
 
     /// Operation timeout in seconds
-    #[structopt(long, default_value("30"))]
+    #[structopt(long, default_value("20"))]
     op_timeout: u16,
 }
 
