@@ -106,7 +106,7 @@ pub(crate) struct ClientOptions {
 /// The client side of the communication channels to an IO task.
 struct IoTaskHandle {
     /// Sender to send IO requests to the IO task.
-    tx_write_requests: mpsc::Sender<IoRequest>,
+    tx_io_requests: mpsc::Sender<IoRequest>,
 
     /// Receiver to receive Publish packets from the IO task.
     rx_recv_published: mpsc::Receiver<Packet>,
@@ -121,7 +121,7 @@ struct IoTask {
     options: ClientOptions,
 
     /// Receiver to receive IO requests for the IO task.
-    rx_write_requests: mpsc::Receiver<IoRequest>,
+    rx_io_requests: mpsc::Receiver<IoRequest>,
 
     /// Sender to send Publish packets from the IO task.
     tx_recv_published: mpsc::Sender<Packet>,
@@ -220,18 +220,18 @@ impl Client {
 
     fn spawn_io_task(&mut self) -> Result<()> {
         self.check_no_io_task()?;
-        let (tx_write_requests, rx_write_requests) =
+        let (tx_io_requests, rx_io_requests) =
             mpsc::channel::<IoRequest>(self.options.packet_buffer_len);
         // TODO: Change this to allow control messages, e.g. disconnected?
         let (tx_recv_published, rx_recv_published) =
             mpsc::channel::<Packet>(self.options.packet_buffer_len);
         self.io_task_handle = Some(IoTaskHandle {
-            tx_write_requests,
+            tx_io_requests,
             rx_recv_published,
         });
         let io = IoTask {
             options: self.options.clone(),
-            rx_write_requests,
+            rx_io_requests,
             tx_recv_published,
             state: IoTaskState::Disconnected,
             subscriptions: BTreeMap::new(),
@@ -456,7 +456,7 @@ impl Client {
             tx_result: Some(tx),
             io_type: io_type,
         };
-        c.tx_write_requests.clone().send(req).await
+        c.tx_io_requests.clone().send(req).await
             .map_err(|e| Error::from_std_err(e))?;
         // TODO: Add a timeout?
         let res = rx.await
@@ -722,7 +722,7 @@ impl IoTask {
         // borrow to write packets based on IO requests.
         // These two mutable borrows don't overlap.
         let sel_res: SelectResult = {
-            let mut req_fut = Box::pin(self.rx_write_requests.recv().fuse());
+            let mut req_fut = Box::pin(self.rx_io_requests.recv().fuse());
             let mut read_fut = Box::pin(
                 Self::read_packet(&mut c.stream, &mut c.read_buf, &mut c.read_bufn,
                                   self.options.max_packet_len).fuse());
