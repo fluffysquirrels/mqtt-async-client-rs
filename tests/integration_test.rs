@@ -177,7 +177,6 @@ fn tls_client() -> Result<Client> {
         .build()
 }
 
-#[allow(dead_code)]
 fn plain_client() -> Result<Client> {
     Client::builder()
         .set_host("localhost".to_owned())
