@@ -1,9 +1,10 @@
 # Release process
 
 1. Push changes to [GitHub][github].
-1. Increment version number in Cargo.toml (major version if breaking changes).
-1. Check build locally with `cargo test`.
+1. Increment version number in `Cargo.toml` (major version if breaking changes).
+1. Check build locally with `cargo test`. This will update the version number in `Cargo.lock`
 1. Update the changelog.
+1. Commit the changes.
 1. Add a git tag for the new version number and push it to [GitHub][github]:
 
     `git tag vX.Y.Z && git push --tags`
