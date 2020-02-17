@@ -49,19 +49,19 @@ fn pub_and_sub_plain() -> Result<()> {
         let mut c = plain_client()?;
         c.connect().await?;
 
-        // Subscribe to "a"
+        // Subscribe
         let subopts = Subscribe::new(vec![
             SubscribeTopic { qos: QoS::AtMostOnce, topic_path: "test/pub_and_sub".to_owned() }
             ]);
         let subres = c.subscribe(subopts).await?;
         subres.any_failures()?;
 
-        // Publish to "a"
+        // Publish
         let mut p = Publish::new("test/pub_and_sub".to_owned(), "x".as_bytes().to_vec());
         p.set_qos(QoS::AtMostOnce);
         c.publish(&p).await?;
 
-        // Read from "a".
+        // Read
         let r = c.read_subscriptions().await?;
         assert_eq!(r.topic(), "test/pub_and_sub");
         assert_eq!(r.payload(), b"x");
@@ -78,19 +78,19 @@ fn pub_and_sub_tls() -> Result<()> {
         let mut c = tls_client()?;
         c.connect().await?;
 
-        // Subscribe to "a"
+        // Subscribe
         let subopts = Subscribe::new(vec![
             SubscribeTopic { qos: QoS::AtMostOnce, topic_path: "test/pub_and_sub_tls".to_owned() }
             ]);
         let subres = c.subscribe(subopts).await?;
         subres.any_failures()?;
 
-        // Publish to "a"
+        // Publish
         let mut p = Publish::new("test/pub_and_sub_tls".to_owned(), "x".as_bytes().to_vec());
         p.set_qos(QoS::AtMostOnce);
         c.publish(&p).await?;
 
-        // Read from "a".
+        // Read
         let r = c.read_subscriptions().await?;
         assert_eq!(r.topic(), "test/pub_and_sub_tls");
         assert_eq!(r.payload(), b"x");
@@ -107,26 +107,56 @@ fn unsubscribe() -> Result<()> {
         let mut c = tls_client()?;
         c.connect().await?;
 
-        // Subscribe to "test/unsub"
+        // Subscribe
         let subopts = Subscribe::new(vec![
             SubscribeTopic { qos: QoS::AtMostOnce, topic_path: "test/unsub".to_owned() }
             ]);
         let subres = c.subscribe(subopts).await?;
         subres.any_failures()?;
 
-        // Unsubscribe from "test/unsub"
+        // Unsubscribe
         c.unsubscribe(Unsubscribe::new(vec![
             UnsubscribeTopic::new("test/unsub".to_owned()),
             ])).await?;
 
-        // Publish to "a"
+        // Publish
         let mut p = Publish::new("test/unsub".to_owned(), "x".as_bytes().to_vec());
         p.set_qos(QoS::AtMostOnce);
         c.publish(&p).await?;
 
-        // Read from "a" and timeout.
+        // Read and timeout.
         let r = timeout(Duration::from_secs(3), c.read_subscriptions()).await;
         assert!(r.is_err());
+        c.disconnect().await?;
+        Ok(())
+    })
+}
+
+#[test]
+fn retain() -> Result<()> {
+    init_logger();
+    let mut rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        let mut c = tls_client()?;
+        c.connect().await?;
+
+        // Publish
+        let mut p = Publish::new("test/retain".to_owned(), "x".as_bytes().to_vec());
+        p.set_qos(QoS::AtMostOnce);
+        p.set_retain(true);
+        c.publish(&p).await?;
+
+        // Subscribe
+        let subopts = Subscribe::new(vec![
+            SubscribeTopic { qos: QoS::AtMostOnce, topic_path: "test/retain".to_owned() }
+            ]);
+        let subres = c.subscribe(subopts).await?;
+        subres.any_failures()?;
+
+        // Read
+        let r = c.read_subscriptions().await?;
+        assert_eq!(r.topic(), "test/retain");
+        assert_eq!(r.payload(), b"x");
         c.disconnect().await?;
         Ok(())
     })

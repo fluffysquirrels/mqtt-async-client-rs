@@ -277,7 +277,7 @@ impl Client {
                 QoS::AtLeastOnce => QosPid::AtLeastOnce(self.alloc_write_pid()?),
                 QoS::ExactlyOnce => panic!("Not reached"),
             },
-            retain: false, // TODO
+            retain: p.retain(),
             topic_name: p.topic().to_owned(),
             payload: p.payload().to_owned(),
         });

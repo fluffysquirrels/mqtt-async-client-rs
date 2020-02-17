@@ -96,6 +96,9 @@ struct Publish {
     #[structopt(long,
                 default_value("1"))]
     repeats: u32,
+
+    #[structopt(long)]
+    retain: bool,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -130,6 +133,7 @@ async fn publish(pub_args: Publish, args: Args) -> Result<()> {
     client.connect().await?;
     let mut p = PublishOpts::new(pub_args.topic.clone(), pub_args.message.as_bytes().to_vec());
     p.set_qos(int_to_qos(pub_args.qos));
+    p.set_retain(pub_args.retain);
     let futs = (0..(pub_args.repeats)).map(|_| {
         client.publish(&p)
     });

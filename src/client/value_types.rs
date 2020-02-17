@@ -12,6 +12,7 @@ pub struct Publish {
     topic: String,
     payload: Vec<u8>,
     qos: QoS,
+    retain: bool,
 }
 
 impl Publish {
@@ -21,6 +22,7 @@ impl Publish {
             topic,
             payload,
             qos: QoS::AtMostOnce,
+            retain: false,
         }
     }
 
@@ -45,6 +47,21 @@ impl Publish {
     pub fn set_qos(&mut self, qos: QoS) -> &mut Self {
         self.qos = qos;
         self
+    }
+
+    /// Set value of the retain flag.
+    ///
+    /// The default is false.
+    ///
+    /// See MQTT 3.1.1 section 3.3.1.3 http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/errata01/os/mqtt-v3.1.1-errata01-os-complete.html#_Toc385349265
+    pub fn set_retain(&mut self, retain: bool) -> &mut Self {
+        self.retain = retain;
+        self
+    }
+
+    /// Returns the retain flag value configured.
+    pub fn retain(&self) -> bool {
+        self.retain
     }
 }
 
