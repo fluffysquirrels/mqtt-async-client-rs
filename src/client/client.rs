@@ -26,7 +26,7 @@ use futures_util::{
     },
     select,
 };
-use log::{debug, error, trace};
+use log::{debug, error, info, trace};
 use mqttrs::{
     ConnectReturnCode,
     Packet,
@@ -612,7 +612,7 @@ impl IoTask {
                 IoTaskState::Connected(_) =>
                     match Self::run_once_connected(&mut self).await {
                         Err(Error::Disconnected) => {
-                            error!("IoTask: Disconnected, resetting state");
+                            info!("IoTask: Disconnected, resetting state");
                             self.state = IoTaskState::Disconnected;
                         },
                         Err(e) => {
@@ -694,7 +694,9 @@ impl IoTask {
         };
 
         if let Err(e) = c.stream.shutdown().await {
-            error!("IoTask: Error on stream shutdown in shutdown_conn: {:?}", e);
+            if e.kind() != std::io::ErrorKind::NotConnected {
+                error!("IoTask: Error on stream shutdown in shutdown_conn: {:?}", e);
+            }
         }
         self.state = IoTaskState::Disconnected;
     }
