@@ -31,6 +31,10 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
+### 0.1.5
+
+Correctly connect only once when automatic_connect is disabled.
+
 ### 0.1.4
 
 Missing ping responses should cause a disconnect even when keepalive > op timeout.
