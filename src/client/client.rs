@@ -152,6 +152,7 @@ struct IoTask {
 }
 
 enum IoTaskState {
+    Halted,
     Disconnected,
     Connected(IoTaskConnected),
 }
@@ -582,16 +583,24 @@ impl IoTask {
         loop {
             if self.halt.load(Ordering::SeqCst) {
                 self.shutdown_conn().await;
-                debug!("IoTask: halting.");
+                debug!("IoTask: halting by request.");
+                self.state = IoTaskState::Halted;
                 return;
             }
 
             match self.state {
+                IoTaskState::Halted => return,
                 IoTaskState::Disconnected =>
                     match Self::try_connect(&mut self).await {
                         Err(e) => {
                             error!("IoTask: Error connecting: {}", e);
-                            delay_for(self.options.connect_retry_delay).await;
+                            if self.options.automatic_connect {
+                                delay_for(self.options.connect_retry_delay).await;
+                            } else {
+                                info!("IoTask: halting due to connection failure, auto connect is off.");
+                                self.state = IoTaskState::Halted;
+                                return;
+                            }
                         },
                         Ok(()) => {
                             if let Err(e) = Self::replay_subscriptions(&mut self).await {
@@ -677,8 +686,9 @@ impl IoTask {
     async fn shutdown_conn(&mut self) {
         debug!("IoTask: shutdown_conn");
         let c = match self.state {
-            // Already disconnected, nothing more to do.
-            IoTaskState::Disconnected => return,
+            // Already disconnected / halted, nothing more to do.
+            IoTaskState::Disconnected |
+            IoTaskState::Halted => return,
 
             IoTaskState::Connected(ref mut c) => c,
         };

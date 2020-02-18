@@ -70,6 +70,9 @@ struct Args {
     /// Operation timeout in seconds
     #[structopt(long, default_value("20"))]
     op_timeout: u16,
+
+    #[structopt(long, default_value("true"), possible_values(&["true", "false"]))]
+    auto_connect: String,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -178,7 +181,12 @@ fn client_from_args(args: Args) -> Result<Client> {
      .set_client_id(args.client_id)
      .set_connect_retry_delay(Duration::from_secs(1))
      .set_keep_alive(KeepAlive::from_secs(args.keep_alive))
-     .set_operation_timeout(Duration::from_secs(args.op_timeout as u64));
+     .set_operation_timeout(Duration::from_secs(args.op_timeout as u64))
+     .set_automatic_connect(match args.auto_connect.as_str() {
+         "true" => true,
+         "false" => false,
+         _ => panic!("Bad validation"),
+     });
 
     if let Some(s) = args.tls_server_ca_file {
         let mut cc = rustls::ClientConfig::new();
