@@ -202,9 +202,6 @@ enum IoType {
     /// A packet to write that expects a response with a certain `Pid`.
     WriteAndResponse { packet: Packet, response_pid: Pid },
 
-    /// A connect request that expects a Connack response.
-    _Connect,
-
     /// A request to shut down the TCP connection gracefully.
     ShutdownConnection,
 }
@@ -466,11 +463,6 @@ impl Client {
             response_pid: packet_pid(p).expect("packet_pid"),
         };
         self.write_request(io_type)
-            .await.map(|v| v.expect("return packet"))
-    }
-
-    async fn _write_connect(&self) -> Result<Packet> {
-        self.write_request(IoType::_Connect)
             .await.map(|v| v.expect("return packet"))
     }
 
@@ -891,9 +883,6 @@ impl IoTask {
                 IoType::ShutdownConnection => {
                     panic!("Not reached because ShutdownConnection has no packet")
                 },
-                IoType::_Connect => {
-                    panic!("Not reached because Connect has no packet");
-                }
             }
         } else {
             match req.io_type {
@@ -1007,7 +996,6 @@ impl IoType {
             IoType::ShutdownConnection => None,
             IoType::WriteOnly { packet } => Some(&packet),
             IoType::WriteAndResponse { packet, .. } => Some(&packet),
-            IoType::_Connect => None,
         }
     }
 }
