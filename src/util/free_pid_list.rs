@@ -8,14 +8,29 @@ pub struct FreePidList {
 }
 
 impl FreePidList {
+    /// Returns a new instance with all pids available.
     pub fn new() -> FreePidList {
-        let mut map = BTreeMap::new();
-        map.insert(1, std::u16::MAX);
         FreePidList {
-            map,
+            map: Self::new_map(),
         }
     }
 
+    #[allow(dead_code)]
+    /// Resets this instance by marking all pids available.
+    pub fn clear(&mut self) {
+        self.map = Self::new_map();
+    }
+
+    fn new_map() -> BTreeMap<u16, u16> {
+        let mut map = BTreeMap::new();
+        map.insert(1, std::u16::MAX);
+        map
+    }
+
+    /// Allocates a new Pid.
+    ///
+    /// Returns None if no free Pids are available, otherwise returns
+    /// Some(pid) and marks pid as used.
     pub fn alloc(&mut self) -> Option<u16> {
         let range = self.map.iter().next();
         let (lb, ub) = match range {
@@ -33,6 +48,8 @@ impl FreePidList {
 
     /// Returns true if Pid was already free.
     /// TODO: Better return type?
+    ///
+    /// Panics if x == 0.
     pub fn free(&mut self, x: u16) -> bool {
         assert!(x >= 1, "x >= 1");
 
@@ -220,5 +237,14 @@ mod tests {
         let mut l = FreePidList::new();
         assert_eq!(l.map, btreemap!{1 => std::u16::MAX});
         assert_eq!(l.free(std::u16::MAX), true);
+    }
+
+    #[test]
+    fn clear() {
+        let mut l = FreePidList::new();
+        l.alloc().unwrap();
+        assert_eq!(l.map, btreemap!{2 => std::u16::MAX});
+        l.clear();
+        assert_eq!(l.map, btreemap!{1 => std::u16::MAX});
     }
 }
