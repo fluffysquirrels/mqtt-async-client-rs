@@ -1,3 +1,4 @@
+use maplit::btreemap;
 use std::collections::BTreeMap;
 
 pub struct FreePidList {
@@ -5,26 +6,33 @@ pub struct FreePidList {
     /// inclusive lower bound and the value is the inclusive upper
     /// bound.
     map: BTreeMap<u16, u16>,
+
+    /// Inclusive lower bound of available pids.
+    lb: u16,
+
+    /// Inclusive upper bound of available pids.
+    ub: u16,
 }
 
 impl FreePidList {
     /// Returns a new instance with all pids available.
     pub fn new() -> FreePidList {
+        Self::with_bounds(1, std::u16::MAX)
+    }
+
+    pub fn with_bounds(lb: u16, ub: u16) -> FreePidList {
+        assert!(lb <= ub, "lb <= ub");
+        assert!(lb >= 1, "lb >= 1");
         FreePidList {
-            map: Self::new_map(),
+            lb, ub,
+            map: btreemap!{ lb => ub },
         }
     }
 
     #[allow(dead_code)]
     /// Resets this instance by marking all pids available.
     pub fn clear(&mut self) {
-        self.map = Self::new_map();
-    }
-
-    fn new_map() -> BTreeMap<u16, u16> {
-        let mut map = BTreeMap::new();
-        map.insert(1, std::u16::MAX);
-        map
+        self.map = btreemap!{ self.lb => self.ub }
     }
 
     /// Allocates a new Pid.
@@ -42,7 +50,7 @@ impl FreePidList {
         if ub > lb {
             self.map.insert(lb + 1, ub);
         }
-        assert!(ret >= 1, "ret >= 1");
+        assert!(ret >= self.lb && ret <= self.ub, "ret >= self.lb && ret <= self.ub");
         Some(ret)
     }
 
@@ -51,24 +59,25 @@ impl FreePidList {
     ///
     /// Panics if x == 0.
     pub fn free(&mut self, x: u16) -> bool {
-        assert!(x >= 1, "x >= 1");
+        assert!(x >= self.lb, "x >= lb");
+        assert!(x <= self.ub, "x <= ub");
 
         let range_above: Option<Range> =
-            self.map.range(x..=(std::u16::MAX))
+            self.map.range(x..=(self.ub))
                 .next().map(|(kr, vr)| Range::from((*kr, *vr)));
         let range_below: Option<Range> =
-            self.map.range(1..=x)
+            self.map.range((self.lb)..=x)
                 .next().map(|(kr, vr)| Range::from((*kr, *vr)));
 
         if (range_above.is_some() && range_above.unwrap().contains(x)) ||
-           (range_below.is_some() && range_below.unwrap().contains(x)) {
-
-               return true;
+           (range_below.is_some() && range_below.unwrap().contains(x))
+        {
+            return true;
         }
 
         let range_above_merges =
             range_above.is_some() &&
-            x < std::u16::MAX &&
+            x < std::u16::MAX && // Check x+1 below won't overflow
             range_above.unwrap().lb == x+1;
 
         // x >= 1 by assertion above so x-1 won't underflow.
@@ -246,5 +255,47 @@ mod tests {
         assert_eq!(l.map, btreemap!{2 => std::u16::MAX});
         l.clear();
         assert_eq!(l.map, btreemap!{1 => std::u16::MAX});
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_bounds_swapped() {
+        FreePidList::with_bounds(10, 5);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_bounds_zero() {
+        FreePidList::with_bounds(0, 5);
+    }
+
+    #[test]
+    fn bounds_ex() {
+        let mut l = FreePidList::with_bounds(1, 2);
+        assert_eq!(l.map, btreemap! {1 => 2});
+        assert_eq!(l.alloc(), Some(1));
+        assert_eq!(l.map, btreemap! {2 => 2});
+        assert_eq!(l.alloc(), Some(2));
+        assert_eq!(l.map, btreemap! {});
+        assert_eq!(l.alloc(), None);
+        assert_eq!(l.free(1), false);
+        assert_eq!(l.map, btreemap! {1 => 1});
+        assert_eq!(l.free(2), false);
+        assert_eq!(l.map, btreemap! {1 => 2});
+        assert_eq!(l.free(2), true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bounds_bad_free_lb() {
+        let mut l = FreePidList::with_bounds(5, 10);
+        l.free(1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bounds_bad_free_ub() {
+        let mut l = FreePidList::with_bounds(5, 10);
+        l.free(11);
     }
 }
