@@ -38,12 +38,12 @@ use mqttrs::{
 };
 use rustls;
 use std::{
-    cell::RefCell,
     cmp::min,
     collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
+        Mutex,
     },
 };
 use tokio::{
@@ -84,6 +84,9 @@ use tokio_rustls::{
 ///        .set_host("example.com".to_owned())
 ///        .build();
 /// ```
+///
+/// `Client` is expected to be `Send` (passable between threads), but not
+/// `Sync` (usable by multiple threads at the same time).
 pub struct Client {
     /// Options configured for the client
     options: ClientOptions,
@@ -91,8 +94,11 @@ pub struct Client {
     /// Handle values to communicate with the IO task
     io_task_handle: Option<IoTaskHandle>,
 
-    /// Tracks which Pids (MQTT packet IDs) are in use
-    free_write_pids: RefCell<FreePidList>,
+    /// Tracks which Pids (MQTT packet IDs) are in use.
+    ///
+    /// This field uses a Mutex for interior mutability so that
+    /// `Client` is `Send`. It's not expected to be `Sync`.
+    free_write_pids: Mutex<FreePidList>,
 }
 
 #[derive(Clone)]
@@ -223,7 +229,7 @@ impl Client {
         Ok(Client {
             options: opts,
             io_task_handle: None,
-            free_write_pids: RefCell::new(FreePidList::new()),
+            free_write_pids: Mutex::new(FreePidList::new()),
         })
     }
 
@@ -432,14 +438,14 @@ impl Client {
     }
 
     fn alloc_write_pid(&self) -> Result<Pid> {
-        match self.free_write_pids.borrow_mut().alloc() {
+        match self.free_write_pids.lock().expect("not poisoned").alloc() {
             Some(pid) => Ok(Pid::try_from(pid).expect("Non-zero Pid")),
             None => Err(Error::from("No free Pids")),
         }
     }
 
     fn free_write_pid(&self, p: Pid) -> Result<()> {
-        match self.free_write_pids.borrow_mut().free(p.get()) {
+        match self.free_write_pids.lock().expect("not poisoned").free(p.get()) {
             true => Err(Error::from("Pid was already free")),
             false => Ok(())
         }
@@ -1009,5 +1015,16 @@ impl IoType {
             IoType::WriteOnly { packet } => Some(&packet),
             IoType::WriteAndResponse { packet, .. } => Some(&packet),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Client;
+
+    #[test]
+    fn client_is_send() {
+        let c = Client::builder().set_host("localhost".to_owned()).build().unwrap();
+        let _s: &dyn Send = &c;
     }
 }
