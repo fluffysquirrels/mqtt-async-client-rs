@@ -31,6 +31,10 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
+### 0.1.6
+
+`Client` is `Send`.
+
 ### 0.1.5
 
 Correctly connect only once when automatic_connect is disabled.
