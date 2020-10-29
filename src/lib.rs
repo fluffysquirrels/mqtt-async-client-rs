@@ -1,7 +1,7 @@
 //! An MQTT 3.1.1 client written in Rust.
 //!
 //! For example usage see the command-line test app at
-//! `src/bin/mqttc.rs`, and integration tests at `tests/*.rs`.
+//! `examples/mqttc.rs`, and integration tests at `tests/*.rs`.
 //!
 //! This crate uses the log crate. To enable extra, potentially
 //! sensitive logging (including passwords) enable the
