@@ -1,12 +1,18 @@
 //! An MQTT 3.1.1 client written in Rust.
 //!
 //! For example usage see the command-line test app at
-//! `src/bin/mqttc.rs`, and integration tests at `tests/*.rs`.
+//! `examples/mqttc.rs`, and integration tests at `tests/*.rs`.
 //!
 //! This crate uses the log crate. To enable extra, potentially
 //! sensitive logging (including passwords) enable the
 //! "unsafe-logging" Cargo feature. With "unsafe-logging" enabled at
 //! the "trace" log level every packet is logged.
+//!
+//! The "tls" feature is enabled by default and allows connections
+//! over TLS using [rustls](https://crates.io/crates/rustls).
+//! If TLS is not required you can opt out by specifying
+//! `default-features = false`.
+//! E.g. `mqtt-async-client = { version = "0.1", default-features = false }`
 #![deny(warnings)]
 #![deny(missing_docs)]
 

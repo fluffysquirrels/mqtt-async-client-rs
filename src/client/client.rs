@@ -36,6 +36,7 @@ use mqttrs::{
     self,
     SubscribeTopic,
 };
+#[cfg(feature = "tls")]
 use rustls;
 use std::{
     cmp::min,
@@ -65,6 +66,7 @@ use tokio::{
         timeout,
     },
 };
+#[cfg(feature = "tls")]
 use tokio_rustls::{
     self,
     TlsConnector,
@@ -115,6 +117,7 @@ pub(crate) struct ClientOptions {
     pub(crate) packet_buffer_len: usize,
     pub(crate) max_packet_len: usize,
     pub(crate) operation_timeout: Duration,
+    #[cfg(feature = "tls")]
     pub(crate) tls_client_config: Option<Arc<rustls::ClientConfig>>,
     pub(crate) automatic_connect: bool,
     pub(crate) connect_retry_delay: Duration,
@@ -515,6 +518,7 @@ impl Client {
 /// Start network connection to the server.
 async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
     debug!("Connecting to {}:{}", opts.host, opts.port);
+    #[cfg(feature = "tls")]
     match opts.tls_client_config {
         Some(ref c) => {
             let connector = TlsConnector::from(c.clone());
@@ -528,6 +532,12 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
             let tcp = TcpStream::connect((&*opts.host, opts.port)).await?;
             Ok(AsyncStream::TcpStream(tcp))
         }
+    }
+
+    #[cfg(not(feature = "tls"))]
+    {
+        let tcp = TcpStream::connect((&*opts.host, opts.port)).await?;
+        Ok(AsyncStream::TcpStream(tcp))
     }
 }
 
