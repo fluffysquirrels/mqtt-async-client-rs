@@ -31,26 +31,33 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
+### 0.1.7
+
+* Implement `Debug` for `Client` and `ClientOptions`
+* Reduce dependencies for faster and less fiddly builds: `env_logger`
+  and `structopt` are now dev-dependencies, `rustls` is now optional but
+  included by default as part of the `tls` feature.
+
 ### 0.1.6
 
-`Client` is `Send`.
+* `Client` is `Send`.
 
 ### 0.1.5
 
-Correctly connect only once when automatic_connect is disabled.
+* Correctly connect only once when automatic_connect is disabled.
 
 ### 0.1.4
 
-Missing ping responses should cause a disconnect even when keepalive > op timeout.
+* Missing ping responses should cause a disconnect even when keepalive > op timeout.
 
-Publish with retain flag.
+* Publish with retain flag.
 
 ### 0.1.3
 
-Added timeouts to disconnect, and publish when QoS=0.
+* Added timeouts to disconnect, and publish when QoS=0.
 
 ### 0.1.2
 
-Enable automatic reconnects by default.
+* Enable automatic reconnects by default.
 
-This tracks subscriptions and replays them after reconnecting. No publish retries yet.
+* This tracks subscriptions and replays them after reconnecting. No publish retries yet.
