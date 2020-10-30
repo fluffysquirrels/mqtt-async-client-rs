@@ -41,6 +41,7 @@ use rustls;
 use std::{
     cmp::min,
     collections::BTreeMap,
+    fmt,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -103,6 +104,14 @@ pub struct Client {
     free_write_pids: Mutex<FreePidList>,
 }
 
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Client")
+         .field("options", &self.options)
+         .finish()
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ClientOptions {
     // See ClientBuilder methods for per-field documentation.
@@ -121,6 +130,25 @@ pub(crate) struct ClientOptions {
     pub(crate) tls_client_config: Option<Arc<rustls::ClientConfig>>,
     pub(crate) automatic_connect: bool,
     pub(crate) connect_retry_delay: Duration,
+}
+
+impl fmt::Debug for ClientOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClientOptions")
+         .field("host", &self.host)
+         .field("port", &self.port)
+         .field("username", &self.username)
+         // Deliberately skipping password field here to
+         // avoid accidentially leaking it
+         .field("keep_alive", &self.keep_alive)
+         .field("client_id", &self.client_id)
+         .field("packet_buffer_len", &self.packet_buffer_len)
+         .field("max_packet_len", &self.max_packet_len)
+         .field("operation_timeout", &self.operation_timeout)
+         .field("automatic_connect", &self.automatic_connect)
+         .field("connect_retry_delay", &self.connect_retry_delay)
+         .finish()
+    }
 }
 
 /// The client side of the communication channels to an IO task.
