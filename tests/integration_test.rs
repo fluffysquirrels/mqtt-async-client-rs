@@ -11,7 +11,7 @@
 //! This will run an unencrypted listener at localhost:1883, and a TLS
 //! encrypted listener at localhost:8883, using the certificates and
 //! keys in ${REPO}/tests/certs, which were generated using these
-//! instructions: https://stackoverflow.com/a/21340898/94819
+//! instructions: <https://stackoverflow.com/a/21340898/94819>
 
 #![deny(warnings)]
 

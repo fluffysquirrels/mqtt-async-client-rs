@@ -53,7 +53,7 @@ impl Publish {
     ///
     /// The default is false.
     ///
-    /// See MQTT 3.1.1 section 3.3.1.3 http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/errata01/os/mqtt-v3.1.1-errata01-os-complete.html#_Toc385349265
+    /// See MQTT 3.1.1 section 3.3.1.3 <http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/errata01/os/mqtt-v3.1.1-errata01-os-complete.html#_Toc385349265>
     pub fn set_retain(&mut self, retain: bool) -> &mut Self {
         self.retain = retain;
         self
