@@ -13,6 +13,11 @@
 //! If TLS is not required you can opt out by specifying
 //! `default-features = false`.
 //! E.g. `mqtt-async-client = { version = "0.1", default-features = false }`
+//!
+//! The "serde" feature is disabled by default, but when enabled
+//! `client::ClientBuilder` will implement `serde::Deserialize`. For example,
+//! you can then `Deserialize` your `ClientBuilder` with options from a config
+//! file.
 #![deny(warnings)]
 #![deny(missing_docs)]
 

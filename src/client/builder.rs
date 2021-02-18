@@ -12,6 +12,8 @@ use crate::{
 
 #[cfg(feature = "tls")]
 use rustls;
+#[cfg(feature = "serde")]
+use serde::Deserialize;
 #[cfg(feature = "tls")]
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -20,7 +22,8 @@ use tokio::time::Duration;
 ///
 /// Note that you must call `.set_host()` to configure a host to
 /// connect to before `.build()`
-#[derive(Default)]
+#[cfg_attr(feature = "serde", derive(Default, Deserialize))]
+#[cfg_attr(not(feature = "serde"), derive(Default))]
 pub struct ClientBuilder {
     host: Option<String>,
     port: Option<u16>,
