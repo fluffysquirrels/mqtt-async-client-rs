@@ -1,4 +1,11 @@
-use tokio::{io::{AsyncRead, AsyncWrite, ReadBuf}, net::TcpStream};
+use tokio::{
+    io::{
+        AsyncRead,
+        AsyncWrite,
+        ReadBuf
+    },
+    net::TcpStream
+};
 #[cfg(feature = "tls")]
 use tokio_rustls::client::TlsStream;
 use std::{
@@ -15,7 +22,7 @@ pub(crate) enum AsyncStream {
 
 impl AsyncRead for AsyncStream {
     fn poll_read(
-        self: Pin<&mut Self>, 
+        self: Pin<&mut Self>,
         cx: &mut Context,
         buf: &mut ReadBuf,
     ) -> Poll<std::io::Result<()>> {
