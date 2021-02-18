@@ -25,14 +25,15 @@ use mqtt_async_client::{
         Unsubscribe,
         UnsubscribeTopic,
     },
-    Error,
     Result,
 };
+#[cfg(feature = "tls")]
+use mqtt_async_client::Error;
+#[cfg(feature = "tls")]
 use rustls;
-use std::{
-    io::Cursor,
-    sync::Once,
-};
+use std::sync::Once;
+#[cfg(feature = "tls")]
+use std::io::Cursor;
 use tokio::{
     self,
     time::{
@@ -44,7 +45,7 @@ use tokio::{
 #[test]
 fn pub_and_sub_plain() -> Result<()> {
     init_logger();
-    let mut rt = tokio::runtime::Runtime::new()?;
+    let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         let mut c = plain_client()?;
         c.connect().await?;
@@ -70,10 +71,11 @@ fn pub_and_sub_plain() -> Result<()> {
     })
 }
 
+#[cfg(feature = "tls")]
 #[test]
 fn pub_and_sub_tls() -> Result<()> {
     init_logger();
-    let mut rt = tokio::runtime::Runtime::new()?;
+    let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         let mut c = tls_client()?;
         c.connect().await?;
@@ -102,9 +104,9 @@ fn pub_and_sub_tls() -> Result<()> {
 #[test]
 fn unsubscribe() -> Result<()> {
     init_logger();
-    let mut rt = tokio::runtime::Runtime::new()?;
+    let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
-        let mut c = tls_client()?;
+        let mut c = plain_client()?;
         c.connect().await?;
 
         // Subscribe
@@ -135,9 +137,9 @@ fn unsubscribe() -> Result<()> {
 #[test]
 fn retain() -> Result<()> {
     init_logger();
-    let mut rt = tokio::runtime::Runtime::new()?;
+    let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
-        let mut c = tls_client()?;
+        let mut c = plain_client()?;
         c.connect().await?;
 
         // Publish
@@ -162,6 +164,7 @@ fn retain() -> Result<()> {
     })
 }
 
+#[cfg(feature = "tls")]
 fn tls_client() -> Result<Client> {
     let mut cc = rustls::ClientConfig::new();
     let cert_bytes = include_bytes!("certs/cacert.pem");
