@@ -31,6 +31,10 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
+### 0.2.0
+
+* Update `tokio` dependency to v1.2.0.
+
 ### 0.1.7
 
 * Implement `Debug` for `Client` and `ClientOptions`
