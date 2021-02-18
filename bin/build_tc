@@ -17,7 +17,6 @@ rustup toolchain update ${TC};
 cd ${REPO_DIR};
 
 cargo +${TC} build --verbose;
-cargo +${TC} build --verbose --features serde;
 
 # Don't run integration tests under CI yet, because that requires a
 # message broker, currently missing.
