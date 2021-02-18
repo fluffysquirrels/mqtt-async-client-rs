@@ -2,8 +2,9 @@ use tokio::{
     io::{
         AsyncRead,
         AsyncWrite,
+        ReadBuf
     },
-    net::TcpStream,
+    net::TcpStream
 };
 #[cfg(feature = "tls")]
 use tokio_rustls::client::TlsStream;
@@ -23,8 +24,8 @@ impl AsyncRead for AsyncStream {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8]
-    ) -> Poll<std::io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<std::io::Result<()>> {
         match Pin::get_mut(self) {
             AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_read(cx, buf),
             #[cfg(feature = "tls")]

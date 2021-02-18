@@ -59,10 +59,10 @@ use tokio::{
         oneshot,
     },
     time::{
-        delay_for,
-        delay_until,
+        sleep,
+        sleep_until,
         Duration,
-        Elapsed,
+        error::Elapsed,
         Instant,
         timeout,
     },
@@ -639,7 +639,7 @@ impl IoTask {
                         Err(e) => {
                             error!("IoTask: Error connecting: {}", e);
                             if self.options.automatic_connect {
-                                delay_for(self.options.connect_retry_delay).await;
+                                sleep(self.options.connect_retry_delay).await;
                             } else {
                                 info!("IoTask: halting due to connection failure, auto connect is off.");
                                 self.state = IoTaskState::Halted;
@@ -811,11 +811,11 @@ impl IoTask {
                 Self::read_packet(&mut c.stream, &mut c.read_buf, &mut c.read_bufn,
                                   self.options.max_packet_len).fuse());
             let mut ping_fut = match pingreq_next {
-                Some(t) => Box::pin(delay_until(t).boxed().fuse()),
+                Some(t) => Box::pin(sleep_until(t).boxed().fuse()),
                 None => Box::pin(pending().boxed().fuse()),
             };
             let mut pingresp_expected_fut = match pingresp_expected_by {
-                Some(t) => Box::pin(delay_until(t).boxed().fuse()),
+                Some(t) => Box::pin(sleep_until(t).boxed().fuse()),
                 None => Box::pin(pending().boxed().fuse()),
             };
             select! {
