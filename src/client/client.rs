@@ -127,7 +127,7 @@ pub(crate) struct ClientOptions {
     pub(crate) max_packet_len: usize,
     pub(crate) operation_timeout: Duration,
     #[cfg(feature = "tls")]
-    pub(crate) tls_client_config: Option<Arc<rustls::ClientConfig>>,
+    pub(crate) connection_mode: ConnectionMode,
     pub(crate) automatic_connect: bool,
     pub(crate) connect_retry_delay: Duration,
 }
@@ -546,9 +546,9 @@ impl Client {
 /// Start network connection to the server.
 async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
     debug!("Connecting to {}:{}", opts.host, opts.port);
-    #[cfg(feature = "tls")]
-    match opts.tls_client_config {
-        Some(ref c) => {
+    match opts.connection_mode {
+        #[cfg(feature = "tls")]
+        ConnectionMode::Tls(ref c) => {
             let connector = TlsConnector::from(c.clone());
             let domain = DNSNameRef::try_from_ascii_str(&*opts.host)
                 .map_err(|e| Error::from_std_err(e))?;
@@ -556,9 +556,16 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
             let conn = connector.connect(domain, tcp).await?;
             Ok(AsyncStream::TlsStream(conn))
         },
-        None => {
+        ConnectionMode::Tcp => {
             let tcp = TcpStream::connect((&*opts.host, opts.port)).await?;
             Ok(AsyncStream::TcpStream(tcp))
+        }
+        ConnectionMode::Websocket => {
+            let websocket = tokio_tungstenite::connect_async(
+                    format!("{}:{}", opts.host, opts.port)
+                ).await
+                .map_err(crate::util::tungstenite_error_to_std_io_error)?.0;
+            Ok(AsyncStream::WebSocket(websocket))
         }
     }
 
@@ -1055,6 +1062,21 @@ impl IoType {
         }
     }
 }
+
+/// An enum for specifying which mode we will use to connect to the broker
+#[derive(Clone)]
+pub enum ConnectionMode {
+    Tcp,
+    Websocket,
+    #[cfg(feature = "tls")]
+    Tls(Arc<rustls::ClientConfig>),
+}
+impl Default for ConnectionMode {
+    fn default() -> Self {
+        Self::Tcp
+    }
+}
+
 
 #[cfg(test)]
 mod test {
