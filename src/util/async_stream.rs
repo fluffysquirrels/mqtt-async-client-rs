@@ -99,6 +99,9 @@ impl AsyncWrite for AsyncStream {
 pub fn tungstenite_error_to_std_io_error(e: Error) -> io::Error {
     match e {
         Error::Io(e) => e,
+        Error::Utf8 => io::Error::new(io::ErrorKind::InvalidData, Error::Utf8),
+        Error::Url(e) => io::Error::new(io::ErrorKind::InvalidInput, e),
+        Error::HttpFormat(e) => io::Error::new(io::ErrorKind::InvalidData, e),
         e => io::Error::new(io::ErrorKind::Other, e),
     }
 }
