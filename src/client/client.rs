@@ -1,4 +1,6 @@
+use http::request::Request;
 use bytes::BytesMut;
+use tungstenite::http::Uri;
 use crate::{
     client::{
         builder::ClientBuilder,
@@ -561,18 +563,13 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
             Ok(AsyncStream::TcpStream(tcp))
         }
         ConnectionMode::Websocket => {
+            let url = format!("{}:{}", opts.host, opts.port);
             let websocket = tokio_tungstenite::connect_async(
-                    format!("{}:{}", opts.host, opts.port)
+                Request::get(url.parse::<Uri>().unwrap()).header("Sec-WebSocket-Protocol", "mqtt").body(()).unwrap()
                 ).await
                 .map_err(crate::util::tungstenite_error_to_std_io_error)?.0;
             Ok(AsyncStream::WebSocket(websocket))
         }
-    }
-
-    #[cfg(not(feature = "tls"))]
-    {
-        let tcp = TcpStream::connect((&*opts.host, opts.port)).await?;
-        Ok(AsyncStream::TcpStream(tcp))
     }
 }
 

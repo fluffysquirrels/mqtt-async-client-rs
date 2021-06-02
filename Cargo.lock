@@ -418,6 +418,7 @@ dependencies = [
  "env_logger",
  "futures-core",
  "futures-util",
+ "http",
  "log",
  "maplit",
  "mqttrs",
