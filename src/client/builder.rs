@@ -150,6 +150,7 @@ impl ClientBuilder {
         self
     }
 
+    #[cfg(feature = "websocket")]
     /// Set the connection to use a websocket
     pub fn set_websocket(&mut self) -> &mut Self {
         self.connection_mode = ConnectionMode::Websocket;

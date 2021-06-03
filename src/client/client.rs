@@ -1,5 +1,7 @@
+#[cfg(feature = "websocket")]
 use http::request::Request;
 use bytes::BytesMut;
+#[cfg(feature = "websocket")]
 use tungstenite::http::Uri;
 use crate::{
     client::{
@@ -128,7 +130,6 @@ pub(crate) struct ClientOptions {
     pub(crate) packet_buffer_len: usize,
     pub(crate) max_packet_len: usize,
     pub(crate) operation_timeout: Duration,
-    #[cfg(feature = "tls")]
     pub(crate) connection_mode: ConnectionMode,
     pub(crate) automatic_connect: bool,
     pub(crate) connect_retry_delay: Duration,
@@ -562,6 +563,7 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
             let tcp = TcpStream::connect((&*opts.host, opts.port)).await?;
             Ok(AsyncStream::TcpStream(tcp))
         }
+        #[cfg(feature = "websocket")]
         ConnectionMode::Websocket => {
             let url = format!("{}:{}", opts.host, opts.port);
             let websocket = tokio_tungstenite::connect_async(
@@ -1064,6 +1066,7 @@ impl IoType {
 #[derive(Clone)]
 pub enum ConnectionMode {
     Tcp,
+    #[cfg(feature = "websocket")]
     Websocket,
     #[cfg(feature = "tls")]
     Tls(Arc<rustls::ClientConfig>),

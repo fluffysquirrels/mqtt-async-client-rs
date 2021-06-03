@@ -1,19 +1,23 @@
+#[cfg(feature = "websocket")]
 use futures_util::{
     sink::{Sink, SinkExt},
     stream::Stream,
 };
 use std::{
-    io,
     pin::Pin,
     task::{Context, Poll},
 };
+#[cfg(feature = "websocket")]
+use std::io;
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
 };
 #[cfg(feature = "tls")]
 use tokio_rustls::client::TlsStream;
+#[cfg(feature = "websocket")]
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+#[cfg(feature = "websocket")]
 use tungstenite::{protocol::Message, Error};
 
 /// A wrapper for the data connection, which may or may not be encrypted.
@@ -21,6 +25,7 @@ pub(crate) enum AsyncStream {
     TcpStream(TcpStream),
     #[cfg(feature = "tls")]
     TlsStream(TlsStream<TcpStream>),
+    #[cfg(feature = "websocket")]
     WebSocket(WebSocketStream<MaybeTlsStream<TcpStream>>),
 }
 
@@ -34,6 +39,7 @@ impl AsyncRead for AsyncStream {
             AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_read(cx, buf),
             #[cfg(feature = "tls")]
             AsyncStream::TlsStream(tls) => Pin::new(tls).poll_read(cx, buf),
+            #[cfg(feature = "websocket")]
             AsyncStream::WebSocket(socket) => Pin::new(socket).poll_next(cx).map(|result| {
                 result
                     .unwrap_or(Ok(Message::binary([])))
@@ -54,6 +60,7 @@ impl AsyncWrite for AsyncStream {
             AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_write(cx, buf),
             #[cfg(feature = "tls")]
             AsyncStream::TlsStream(tls) => Pin::new(tls).poll_write(cx, buf),
+            #[cfg(feature = "websocket")]
             AsyncStream::WebSocket(socket) => socket.poll_ready_unpin(cx).map(|result| {
                 match result {
                     Ok(()) => Pin::new(socket)
@@ -74,6 +81,7 @@ impl AsyncWrite for AsyncStream {
             AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_flush(cx),
             #[cfg(feature = "tls")]
             AsyncStream::TlsStream(tls) => Pin::new(tls).poll_flush(cx),
+            #[cfg(feature = "websocket")]
             AsyncStream::WebSocket(socket) => Pin::new(socket)
                 .poll_flush(cx)
                 .map(|r| r.map_err(tungstenite_error_to_std_io_error)),
@@ -88,6 +96,7 @@ impl AsyncWrite for AsyncStream {
             AsyncStream::TcpStream(tcp) => Pin::new(tcp).poll_shutdown(cx),
             #[cfg(feature = "tls")]
             AsyncStream::TlsStream(tls) => Pin::new(tls).poll_shutdown(cx),
+            #[cfg(feature = "websocket")]
             AsyncStream::WebSocket(socket) => Pin::new(socket)
                 .poll_close(cx)
                 .map(|r| r.map_err(tungstenite_error_to_std_io_error)),
@@ -96,6 +105,7 @@ impl AsyncWrite for AsyncStream {
 }
 
 /// Convert from tungstenite Error to std::io Error
+#[cfg(feature = "websocket")]
 pub fn tungstenite_error_to_std_io_error(e: Error) -> io::Error {
     match e {
         Error::Io(e) => e,

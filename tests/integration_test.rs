@@ -72,6 +72,7 @@ fn pub_and_sub_plain() -> Result<()> {
 }
 
 #[test]
+#[cfg(feature = "websocket")]
 fn pub_and_sub_websocket() -> Result<()> {
     init_logger();
     let rt = tokio::runtime::Runtime::new()?;
@@ -209,6 +210,7 @@ fn tls_client() -> Result<Client> {
         .build()
 }
 
+#[cfg(feature = "websocket")]
 fn websocket_client() -> Result<Client> {
     Client::builder()
         .set_host("ws://127.0.0.1".to_owned())
