@@ -487,7 +487,7 @@ impl Client {
     async fn shutdown(&mut self) -> Result <()> {
         let c = self.check_io_task()?;
         c.halt.store(true, Ordering::SeqCst);
-        self.write_request(IoType::ShutdownConnection).await?;
+        let _ = self.write_request(IoType::ShutdownConnection).await;
         self.io_task_handle = None;
         Ok(())
     }
