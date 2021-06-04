@@ -82,19 +82,19 @@ fn pub_and_sub_websocket() -> Result<()> {
 
         // Subscribe
         let subopts = Subscribe::new(vec![
-            SubscribeTopic { qos: QoS::AtMostOnce, topic_path: "test/pub_and_sub".to_owned() }
+            SubscribeTopic { qos: QoS::AtMostOnce, topic_path: "test/pub_and_sub_websocket".to_owned() }
             ]);
         let subres = c.subscribe(subopts).await?;
         subres.any_failures()?;
 
         // Publish
-        let mut p = Publish::new("test/pub_and_sub".to_owned(), "x".as_bytes().to_vec());
+        let mut p = Publish::new("test/pub_and_sub_websocket".to_owned(), "x".as_bytes().to_vec());
         p.set_qos(QoS::AtMostOnce);
         c.publish(&p).await?;
 
         // Read
         let r = c.read_subscriptions().await?;
-        assert_eq!(r.topic(), "test/pub_and_sub");
+        assert_eq!(r.topic(), "test/pub_and_sub_websocket");
         assert_eq!(r.payload(), b"x");
         c.disconnect().await?;
         Ok(())
