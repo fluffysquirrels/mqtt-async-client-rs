@@ -160,7 +160,7 @@ struct IoTaskHandle {
     tx_io_requests: mpsc::Sender<IoRequest>,
 
     /// Receiver to receive Publish packets from the IO task.
-    rx_recv_published: mpsc::Receiver<Packet>,
+    rx_recv_published: mpsc::Receiver<Result<Packet>>,
 
     /// Signal to the IO task to shutdown. Shared with IoTask.
     halt: Arc<AtomicBool>,
@@ -178,7 +178,7 @@ struct IoTask {
     rx_io_requests: mpsc::Receiver<IoRequest>,
 
     /// Sender to send Publish packets from the IO task.
-    tx_recv_published: mpsc::Sender<Packet>,
+    tx_recv_published: mpsc::Sender<Result<Packet>>,
 
     /// enum value describing the current state as disconnected or connected.
     state: IoTaskState,
@@ -279,7 +279,7 @@ impl Client {
             mpsc::channel::<IoRequest>(self.options.packet_buffer_len);
         // TODO: Change this to allow control messages, e.g. disconnected?
         let (tx_recv_published, rx_recv_published) =
-            mpsc::channel::<Packet>(self.options.packet_buffer_len);
+            mpsc::channel::<Result<Packet>>(self.options.packet_buffer_len);
         let halt = Arc::new(AtomicBool::new(false));
         self.io_task_handle = Some(IoTaskHandle {
             tx_io_requests,
@@ -292,7 +292,7 @@ impl Client {
             tx_recv_published,
             state: IoTaskState::Disconnected,
             subscriptions: BTreeMap::new(),
-            halt: halt,
+            halt,
         };
         self.options.runtime.spawn(io.run());
         Ok(())
@@ -359,7 +359,7 @@ impl Client {
             return Err("Qos::ExactlyOnce is not supported right now".into())
         }
         let p = Packet::Subscribe(mqttrs::Subscribe {
-            pid: pid,
+            pid,
             topics: s.topics().to_owned(),
         });
         let res = timeout(self.options.operation_timeout, self.write_response_packet(&p)).await;
@@ -394,7 +394,7 @@ impl Client {
     pub async fn unsubscribe(&mut self, u: Unsubscribe) -> Result<()> {
         let pid = self.alloc_write_pid()?;
         let p = Packet::Unsubscribe(mqttrs::Unsubscribe {
-            pid: pid,
+            pid,
             topics: u.topics().iter().map(|ut| ut.topic_name().to_owned())
                      .collect::<Vec<String>>(),
         });
@@ -425,7 +425,7 @@ impl Client {
     pub async fn read_subscriptions(&mut self) -> Result<ReadResult> {
         let h = self.check_io_task_mut()?;
         let r = match h.rx_recv_published.recv().await {
-            Some(r) => r,
+            Some(r) => r?,
             None => {
                 // Sender closed.
                 self.io_task_handle = None;
@@ -514,7 +514,7 @@ impl Client {
         let (tx, rx) = oneshot::channel::<IoResult>();
         let req = IoRequest {
             tx_result: Some(tx),
-            io_type: io_type,
+            io_type,
         };
         c.tx_io_requests.clone().send(req).await
             .map_err(|e| Error::from_std_err(e))?;
@@ -566,6 +566,7 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
         #[cfg(feature = "websocket")]
         ConnectionMode::Websocket => {
             let url = format!("{}:{}", opts.host, opts.port);
+            println!("Connecting to websocket: \"{}\"", url);
             let websocket = tokio_tungstenite::connect_async(
                 Request::get(url.parse::<Uri>().unwrap()).header("Sec-WebSocket-Protocol", "mqtt").body(()).unwrap()
                 ).await
@@ -678,7 +679,7 @@ impl IoTask {
     async fn try_connect(&mut self) -> Result<()> {
         let stream = connect_stream(&self.options).await?;
         self.state =  IoTaskState::Connected(IoTaskConnected {
-            stream: stream,
+            stream,
             read_buf: BytesMut::with_capacity(self.options.max_packet_len),
             read_bufn: 0,
             last_write_time: Instant::now(),
@@ -861,10 +862,15 @@ impl IoTask {
 
         match read {
             Err(Error::Disconnected) => {
-                return Err(Error::Disconnected);
+                self.tx_recv_published.send(Err(Error::Disconnected)).await
+                    .map_err(Error::from_std_err)?;
             }
             Err(e) => {
-                error!("IoTask: Failed to read packet: {:?}", e);
+                self.tx_recv_published.send(
+                        Err(format!("IoTask: Failed to read packet: {:?}", e).into())
+                    )
+                    .await
+                    .map_err(Error::from_std_err)?;
             },
             Ok(p) => {
                 match p {
@@ -873,7 +879,7 @@ impl IoTask {
                         c.last_pingresp_time = Instant::now();
                     },
                     Packet::Publish(_) => {
-                        if let Err(e) = self.tx_recv_published.send(p).await {
+                        if let Err(e) = self.tx_recv_published.send(Ok(p)).await {
                             error!("IoTask: Failed to send Packet: {:?}", e);
                         }
                     },
