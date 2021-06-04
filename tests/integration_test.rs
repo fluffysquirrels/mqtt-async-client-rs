@@ -213,8 +213,7 @@ fn tls_client() -> Result<Client> {
 #[cfg(feature = "websocket")]
 fn websocket_client() -> Result<Client> {
     Client::builder()
-        .set_host("ws://127.0.0.1".to_owned())
-        .set_port(9001)
+        .set_host("ws://127.0.0.1:9001".to_owned())
         .set_websocket()
         .set_connect_retry_delay(Duration::from_secs(1))
         .build()
