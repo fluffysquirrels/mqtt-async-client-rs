@@ -71,6 +71,8 @@ impl ClientBuilder {
     /// Set TCP port to connect to.
     ///
     /// The default value is 1883.
+    ///
+    /// If using a websocket, this value is ignored. The port should be specified in the host URL.
     pub fn set_port(&mut self, port: u16) -> &mut Self {
         self.port = Some(port);
         self

@@ -2,7 +2,7 @@
 use http::request::Request;
 use bytes::BytesMut;
 #[cfg(feature = "websocket")]
-use tungstenite::http::Uri;
+use tokio_tungstenite::tungstenite::http::Uri;
 use crate::{
     client::{
         builder::ClientBuilder,
@@ -565,10 +565,10 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
         }
         #[cfg(feature = "websocket")]
         ConnectionMode::Websocket => {
-            let url = format!("{}:{}", opts.host, opts.port);
-            println!("Connecting to websocket: \"{}\"", url);
+            // let url = format!("{}:{}", opts.host, opts.port);
+            // println!("Websocket: \"{}\"", url);
             let websocket = tokio_tungstenite::connect_async(
-                Request::get(url.parse::<Uri>().unwrap()).header("Sec-WebSocket-Protocol", "mqtt").body(()).unwrap()
+                Request::get(opts.host.parse::<Uri>().unwrap()).header("Sec-WebSocket-Protocol", "mqtt").body(()).unwrap()
                 ).await
                 .map_err(crate::util::tungstenite_error_to_std_io_error)?.0;
             Ok(AsyncStream::WebSocket(websocket))

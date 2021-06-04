@@ -19,8 +19,7 @@ mqttrs = "0.2.0"
 rustls = { version = "0.19.0", optional = true }
 tokio = { version = "1.2.0", features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "sync", "time"] }
 tokio-rustls = { version = "0.22.0", optional = true }
-tokio-tungstenite = { version = "0.14", optional = true }
-tungstenite = { version = "0.13", optional = true }
+tokio-tungstenite = { version = "0.14", optional = true, features = ["rustls-tls"] }
 
 [dev-dependencies]
 env_logger = "0.7.1"
@@ -30,5 +29,5 @@ webpki-roots = "0.18.0"
 [features]
 default = ["tls", "websocket"]
 tls = ["rustls", "tokio-rustls"]
-websocket = ["tungstenite", "tokio-tungstenite"]
+websocket = ["tokio-tungstenite"]
 unsafe-logging = []
