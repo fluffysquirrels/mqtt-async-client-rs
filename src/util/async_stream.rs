@@ -17,7 +17,6 @@ use tokio::{
 use tokio_rustls::client::TlsStream;
 #[cfg(feature = "websocket")]
 use tokio_tungstenite::{tungstenite::{protocol::Message, Error}, MaybeTlsStream, WebSocketStream};
-#[cfg(feature = "websocket")]
 
 /// A wrapper for the data connection, which may or may not be encrypted.
 pub(crate) enum AsyncStream {
