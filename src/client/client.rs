@@ -488,14 +488,15 @@ impl Client {
     async fn shutdown(&mut self) -> Result <()> {
         let c = self.check_io_task()?;
         c.halt.store(true, Ordering::SeqCst);
-        let _ = self.write_request(IoType::ShutdownConnection).await;
+        self.write_request(IoType::ShutdownConnection, None).await?;
         self.io_task_handle = None;
         Ok(())
     }
 
     async fn write_only_packet(&self, p: &Packet) -> Result<()> {
-        self.write_request(IoType::WriteOnly { packet: p.clone(), })
+        self.write_request(IoType::WriteOnly { packet: p.clone(), }, None)
             .await.map(|_v| ())
+
     }
 
     async fn write_response_packet(&self, p: &Packet) -> Result<Packet> {
@@ -503,25 +504,22 @@ impl Client {
             packet: p.clone(),
             response_pid: packet_pid(p).expect("packet_pid"),
         };
-        self.write_request(io_type)
-            .await.map(|v| v.expect("return packet"))
+        let (tx, rx) = oneshot::channel::<IoResult>();
+        self.write_request(io_type, Some(tx))
+            .await?;
+        // TODO: Add a timeout?
+        let res = rx.await.map_err(Error::from_std_err)?;
+        res.result.map(|v| v.expect("return packet"))
     }
 
-    async fn write_request(&self, io_type: IoType) -> Result<Option<Packet>> {
+    async fn write_request(&self, io_type: IoType, tx_result: Option<oneshot::Sender<IoResult>>) -> Result<()> {
         // NB: Some duplication in IoTask::replay_subscriptions.
 
         let c = self.check_io_task()?;
-        let (tx, rx) = oneshot::channel::<IoResult>();
-        let req = IoRequest {
-            tx_result: Some(tx),
-            io_type,
-        };
+        let req = IoRequest { tx_result, io_type };
         c.tx_io_requests.clone().send(req).await
             .map_err(|e| Error::from_std_err(e))?;
-        // TODO: Add a timeout?
-        let res = rx.await
-            .map_err(|e| Error::from_std_err(e))?;
-        res.result
+        Ok(())
     }
 
     fn check_io_task_mut(&mut self) -> Result<&mut IoTaskHandle> {
