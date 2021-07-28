@@ -13,11 +13,15 @@
 //! If TLS is not required you can opt out by specifying
 //! `default-features = false`.
 //! E.g. `mqtt-async-client = { version = "0.1", default-features = false }`
+//!
+//! The "websocket" feature is disabled by default and allows connections
+//! over websocket using [tokio-tungstenite](https://crates.io/crates/tokio-tungstenite).
+//! If websocket functionality is desired, you can opt in by enabling that
+//! feature in your cargo.toml file.
 #![deny(warnings)]
 #![deny(missing_docs)]
-
 // The futures_util::select! macro needs a higher recursion_limit
-#![recursion_limit="1024"]
+#![recursion_limit = "1024"]
 
 pub mod client;
 mod error;
