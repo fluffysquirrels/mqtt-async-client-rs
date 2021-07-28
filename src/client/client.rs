@@ -563,8 +563,6 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
         }
         #[cfg(feature = "websocket")]
         ConnectionMode::Websocket => {
-            // let url = format!("{}:{}", opts.host, opts.port);
-            // println!("Websocket: \"{}\"", url);
             let websocket = tokio_tungstenite::connect_async(
                 Request::get(opts.host.parse::<Uri>().unwrap()).header("Sec-WebSocket-Protocol", "mqtt").body(()).unwrap()
                 ).await
