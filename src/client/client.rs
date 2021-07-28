@@ -1,5 +1,3 @@
-#[cfg(feature = "websocket")]
-use http::request::Request;
 use bytes::BytesMut;
 #[cfg(feature = "websocket")]
 use tokio_tungstenite::tungstenite::http::Uri;
@@ -30,6 +28,8 @@ use futures_util::{
     },
     select,
 };
+#[cfg(feature = "websocket")]
+use http::request::Request;
 use log::{debug, error, info, trace};
 use mqttrs::{
     ConnectReturnCode,
@@ -72,11 +72,8 @@ use tokio::{
     },
 };
 #[cfg(feature = "tls")]
-use tokio_rustls::{
-    self,
-    TlsConnector,
-    webpki::DNSNameRef,
-};
+use tokio_rustls::{self, webpki::DNSNameRef, TlsConnector};
+use url::Url;
 
 /// An MQTT client.
 ///
@@ -88,7 +85,7 @@ use tokio_rustls::{
 /// # use mqtt_async_client::client::Client;
 /// let client =
 ///     Client::builder()
-///        .set_host("example.com".to_owned())
+///        .set_url_string("mqtt://example.com").unwrap()
 ///        .build();
 /// ```
 ///
@@ -119,9 +116,7 @@ impl fmt::Debug for Client {
 #[derive(Clone)]
 pub(crate) struct ClientOptions {
     // See ClientBuilder methods for per-field documentation.
-
-    pub(crate) host: String,
-    pub(crate) port: u16,
+    pub(crate) url: Url,
     pub(crate) username: Option<String>,
     pub(crate) password: Option<Vec<u8>>,
     pub(crate) keep_alive: KeepAlive,
@@ -138,8 +133,7 @@ pub(crate) struct ClientOptions {
 impl fmt::Debug for ClientOptions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClientOptions")
-         .field("host", &self.host)
-         .field("port", &self.port)
+         .field("url", &self.url)
          .field("username", &self.username)
          // Deliberately skipping password field here to
          // avoid accidentially leaking it
@@ -546,27 +540,103 @@ impl Client {
 
 /// Start network connection to the server.
 async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
-    debug!("Connecting to {}:{}", opts.host, opts.port);
+    debug!("Connecting to {}", opts.url);
     match opts.connection_mode {
         #[cfg(feature = "tls")]
         ConnectionMode::Tls(ref c) => {
+            let host = opts
+                .url
+                .host_str()
+                .ok_or(Error::String("Missing host".to_owned()))?;
+            let port = opts.url.port().unwrap_or(1883);
             let connector = TlsConnector::from(c.clone());
-            let domain = DNSNameRef::try_from_ascii_str(&*opts.host)
+            let domain = DNSNameRef::try_from_ascii_str(host)
                 .map_err(|e| Error::from_std_err(e))?;
-            let tcp = TcpStream::connect((&*opts.host, opts.port)).await?;
+            let tcp = TcpStream::connect((host, port)).await?;
             let conn = connector.connect(domain, tcp).await?;
             Ok(AsyncStream::TlsStream(conn))
         },
         ConnectionMode::Tcp => {
-            let tcp = TcpStream::connect((&*opts.host, opts.port)).await?;
+            let host = opts
+                .url
+                .host_str()
+                .ok_or(Error::String("Missing host".to_owned()))?;
+            let port = opts.url.port().unwrap_or(1883);
+            let tcp = TcpStream::connect((host, port)).await?;
             Ok(AsyncStream::TcpStream(tcp))
         }
         #[cfg(feature = "websocket")]
         ConnectionMode::Websocket => {
-            let websocket = tokio_tungstenite::connect_async(
-                Request::get(opts.host.parse::<Uri>().unwrap()).header("Sec-WebSocket-Protocol", "mqtt").body(()).unwrap()
-                ).await
-                .map_err(crate::util::tungstenite_error_to_std_io_error)?.0;
+            let host = opts
+                .url
+                .host_str()
+                .ok_or(Error::String("Missing host".to_owned()))?;
+            let port = opts.url.port().unwrap_or(1883);
+            let path_and_query = format!(
+                "{}{}",
+                opts.url.path(),
+                opts.url
+                    .query()
+                    .map_or("".to_owned(), |q| format!("?{}", q))
+            );
+            let tcp_connection =
+                tokio_tungstenite::MaybeTlsStream::Plain(TcpStream::connect((host, port)).await?);
+            let websocket = tokio_tungstenite::client_async(
+                Request::get(
+                    Uri::builder()
+                        .scheme("ws")
+                        .authority(format!("{}:{}", host, port).as_str())
+                        .path_and_query(path_and_query)
+                        .build()
+                        .map_err(Error::from_std_err)?,
+                )
+                .header("Sec-WebSocket-Protocol", "mqtt")
+                .body(())
+                .unwrap(),
+                tcp_connection,
+            )
+            .await
+            .map_err(crate::util::tungstenite_error_to_std_io_error)?
+            .0;
+            Ok(AsyncStream::WebSocket(websocket))
+        }
+        #[cfg(feature = "websocket")]
+        ConnectionMode::WebsocketSecure(ref c) => {
+            let host = opts
+                .url
+                .host_str()
+                .ok_or(Error::String("Missing host".to_owned()))?;
+            let port = opts.url.port().unwrap_or(1883);
+            let tls_stream = TlsConnector::from(c.clone())
+                .connect(
+                    DNSNameRef::try_from_ascii_str(host).map_err(|e| Error::from_std_err(e))?,
+                    TcpStream::connect((host, port)).await?,
+                )
+                .await?;
+            let path_and_query = format!(
+                "{}{}",
+                opts.url.path(),
+                opts.url
+                    .query()
+                    .map_or("".to_owned(), |q| format!("?{}", q))
+            );
+            let websocket = tokio_tungstenite::client_async(
+                Request::get(
+                    Uri::builder()
+                        .scheme("wss")
+                        .authority(format!("{}:{}", host, port).as_str())
+                        .path_and_query(path_and_query)
+                        .build()
+                        .map_err(Error::from_std_err)?,
+                )
+                .header("Sec-WebSocket-Protocol", "mqtt")
+                .body(())
+                .unwrap(),
+                tokio_tungstenite::MaybeTlsStream::Rustls(tls_stream),
+            )
+            .await
+            .map_err(crate::util::tungstenite_error_to_std_io_error)?
+            .0;
             Ok(AsyncStream::WebSocket(websocket))
         }
     }
@@ -1070,6 +1140,8 @@ pub enum ConnectionMode {
     Tcp,
     #[cfg(feature = "websocket")]
     Websocket,
+    #[cfg(feature = "websocket")]
+    WebsocketSecure(Arc<rustls::ClientConfig>),
     #[cfg(feature = "tls")]
     Tls(Arc<rustls::ClientConfig>),
 }
@@ -1086,7 +1158,11 @@ mod test {
 
     #[test]
     fn client_is_send() {
-        let c = Client::builder().set_host("localhost".to_owned()).build().unwrap();
+        let c = Client::builder()
+            .set_url_string("mqtt://localhost")
+            .unwrap()
+            .build()
+            .unwrap();
         let _s: &dyn Send = &c;
     }
 }

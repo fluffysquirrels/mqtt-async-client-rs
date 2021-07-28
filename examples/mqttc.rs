@@ -21,10 +21,13 @@ use mqtt_async_client::{
     Error,
     Result,
 };
+#[cfg(feature = "tls")]
 use rustls;
+#[cfg(feature = "tls")]
 use std::io::Cursor;
 use structopt::StructOpt;
 use tokio::time::Duration;
+#[cfg(feature = "tls")]
 use webpki_roots;
 
 #[derive(Clone, Debug, StructOpt)]
@@ -43,11 +46,7 @@ struct Args {
 
     /// Host to connect to, REQUIRED.
     #[structopt(long)]
-    host: String,
-
-    /// TCP/IP port to connect to.
-    #[structopt(long, default_value="1883")]
-    port: u16,
+    url: String,
 
     /// Client ID to identify as, optional.
     #[structopt(long)]
@@ -174,8 +173,7 @@ async fn subscribe(sub_args: Subscribe, args: Args) -> Result<()> {
 
 fn client_from_args(args: Args) -> Result<Client> {
     let mut b = Client::builder();
-    b.set_host(args.host)
-     .set_port(args.port)
+    b.set_url_string(&args.url)?
      .set_username(args.username)
      .set_password(args.password.map(|s| s.as_bytes().to_vec()))
      .set_client_id(args.client_id)
@@ -188,6 +186,7 @@ fn client_from_args(args: Args) -> Result<Client> {
          _ => panic!("Bad validation"),
      });
 
+    #[cfg(feature = "tls")]
     if let Some(s) = args.tls_server_ca_file {
         let mut cc = rustls::ClientConfig::new();
         let cert_bytes = std::fs::read(s)?;
