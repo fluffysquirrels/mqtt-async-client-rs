@@ -541,14 +541,14 @@ impl Client {
 /// Start network connection to the server.
 async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
     debug!("Connecting to {}", opts.url);
+    let host = opts
+        .url
+        .host_str()
+        .ok_or(Error::String("Missing host".to_owned()))?;
     match opts.connection_mode {
         #[cfg(feature = "tls")]
         ConnectionMode::Tls(ref c) => {
-            let host = opts
-                .url
-                .host_str()
-                .ok_or(Error::String("Missing host".to_owned()))?;
-            let port = opts.url.port().unwrap_or(1883);
+            let port = opts.url.port().unwrap_or(8883);
             let connector = TlsConnector::from(c.clone());
             let domain = DNSNameRef::try_from_ascii_str(host)
                 .map_err(|e| Error::from_std_err(e))?;
@@ -557,21 +557,13 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
             Ok(AsyncStream::TlsStream(conn))
         },
         ConnectionMode::Tcp => {
-            let host = opts
-                .url
-                .host_str()
-                .ok_or(Error::String("Missing host".to_owned()))?;
             let port = opts.url.port().unwrap_or(1883);
             let tcp = TcpStream::connect((host, port)).await?;
             Ok(AsyncStream::TcpStream(tcp))
         }
         #[cfg(feature = "websocket")]
         ConnectionMode::Websocket => {
-            let host = opts
-                .url
-                .host_str()
-                .ok_or(Error::String("Missing host".to_owned()))?;
-            let port = opts.url.port().unwrap_or(1883);
+            let port = opts.url.port().unwrap_or(80);
             let path_and_query = format!(
                 "{}{}",
                 opts.url.path(),
@@ -602,11 +594,7 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
         }
         #[cfg(feature = "websocket")]
         ConnectionMode::WebsocketSecure(ref c) => {
-            let host = opts
-                .url
-                .host_str()
-                .ok_or(Error::String("Missing host".to_owned()))?;
-            let port = opts.url.port().unwrap_or(1883);
+            let port = opts.url.port().unwrap_or(443);
             let tls_stream = TlsConnector::from(c.clone())
                 .connect(
                     DNSNameRef::try_from_ascii_str(host).map_err(|e| Error::from_std_err(e))?,
