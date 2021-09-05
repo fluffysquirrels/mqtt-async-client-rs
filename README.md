@@ -31,9 +31,16 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
+### 0.3.0
+
+* Add WebSocket support under Cargo feature "websocket".
+* Switch `ClientBuilder` to use a URL instead of host and port. This was a breaking change to make it simple for consumers to switch protocol.
+
+Thanks to [JarredAllen](https://github.com/JarredAllen) for the implementation!
+
 ### 0.2.0
 
-* Update `tokio` dependency to v1.2.0.
+* Update `tokio` dependency to v1.2.0. Thanks to [marcelbuesing](https://github.com/marcelbuesing) for the PR!
 
 ### 0.1.7
 
@@ -41,6 +48,8 @@ to subscribe to topic `topic` and print any messages that are published to it.
 * Reduce dependencies for faster and less fiddly builds: `env_logger`
   and `structopt` are now dev-dependencies, `rustls` is now optional but
   included by default as part of the `tls` feature.
+
+Thanks to [marcelbuesing](https://github.com/marcelbuesing) for the PRs!
 
 ### 0.1.6
 
