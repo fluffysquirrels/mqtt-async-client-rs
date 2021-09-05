@@ -14,14 +14,24 @@ set -x;
 rustup self update;
 rustup toolchain update ${TC};
 
-cd ${REPO_DIR};
+cd "${REPO_DIR}";
 
+# cargo build
 cargo +${TC} build --verbose --lib --tests --examples;
 cargo +${TC} build --verbose --lib --tests --no-default-features;
 
+cargo +${TC} build --verbose --lib --tests --features "websocket";
+
+# cargo test
 # Don't run integration tests under CI yet, because that requires a
 # message broker, currently missing.
 cargo +${TC} test --verbose --lib;
 cargo +${TC} test --verbose --doc;
 
+cargo +${TC} test --verbose --lib --features "websocket";
+cargo +${TC} test --verbose --doc --features "websocket";
+
+# cargo doc
 cargo +${TC} doc --verbose --no-deps;
+
+cargo +${TC} doc --verbose --no-deps --features "websocket";
