@@ -74,10 +74,10 @@ impl ClientBuilder {
     /// Set the destination url for this mqtt connection.
     ///
     /// Supported schema are:
-    ///   - mqtt: An mqtt session over tcp
-    ///   - mqtts: An mqtt session over tls
-    ///   - ws: An mqtt session over a websocket
-    ///   - wss: An mqtt session over a secure websocket
+    ///   - mqtt: An mqtt session over tcp (default TCP port 1883)
+    ///   - mqtts: An mqtt session over tls (default TCP port 8883)
+    ///   - ws: An mqtt session over a websocket (default TCP port 80, requires cargo feature "websocket")
+    ///   - wss: An mqtt session over a secure websocket (default TCP port 443, requires cargo feature "websocket")
     ///
     /// If the selected scheme is mqtts or wss, then it will preserve the previously provided tls
     /// configuration, if one has been given, or make a new default one otherwise.
