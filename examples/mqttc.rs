@@ -202,7 +202,8 @@ fn client_from_args(args: Args) -> Result<Client> {
             let mut cc = rustls::ClientConfig::new();
             let cert_bytes = std::fs::read(s)?;
             let cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
-                .map_err(|_| Error::from("Error parsing cert file"))?[0].clone();
+                .map_err(|_| Error::from("Error parsing server CA cert file"))?
+                [0].clone();
             cc.root_store.add(&cert)
                 .map_err(|e| Error::from_std_err(e))?;
             Some(cc)
@@ -217,13 +218,17 @@ fn client_from_args(args: Args) -> Result<Client> {
         let cc = if let Some((crt_file, key_file)) = args.tls_client_crt_file.zip(args.tls_client_rsa_key_file) {
             let cert_bytes = std::fs::read(crt_file)?;
             let client_cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
-                .map_err(|_| Error::from("Error parsing cert file"))?[0].clone();
+                .map_err(|_| Error::from("Error parsing client cert file"))?
+                [0].clone();
 
             let key_bytes = std::fs::read(key_file)?;
-            let client_key = rustls::internal::pemfile::rsa_private_keys(&mut Cursor::new(&key_bytes[..])).map_err(|_| Error::from("Error parsing cert file"))?[0].clone();
+            let client_key = rustls::internal::pemfile::rsa_private_keys(&mut Cursor::new(&key_bytes[..]))
+                .map_err(|_| Error::from("Error parsing client key file"))?
+                [0].clone();
 
             let mut cc = cc.unwrap_or_else(rustls::ClientConfig::new);
-            cc.set_single_client_cert(vec![client_cert], client_key).map_err(|_| Error::from("Error setting client cert"))?;
+            cc.set_single_client_cert(vec![client_cert], client_key)
+              .map_err(|e| Error::from(format!("Error setting client cert: {}", e)))?;
             Some(cc)
         } else {
             cc
