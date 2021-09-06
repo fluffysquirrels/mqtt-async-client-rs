@@ -31,9 +31,10 @@ to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
 
-### Unpublished changes from 0.3.0 to `master`
+### 0.3.1
 
 * Add `--tls-client-crt-file` and `--tls-client-rsa-key-file` options to the example `mqttc`. Thanks to [marcelbuesing](https://github.com/marcelbuesing) for the PR!
+* Add more explanation of how to configure TLS to the `ClientBuilder` docs.
 
 ### 0.3.0
 
