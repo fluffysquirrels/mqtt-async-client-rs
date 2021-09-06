@@ -21,8 +21,16 @@ use tokio::time::Duration;
 
 /// A fluent builder interface to configure a Client.
 ///
-/// Note that you must call `.set_host()` to configure a host to
-/// connect to before `.build()`
+/// Note that you must call `.set_url()` or `.set_url_string()` to
+/// configure a host to connect to before you call `.build()`.
+///
+/// To configure TLS options, pass an appropriate
+/// `rustls::ClientConfig` instance to
+/// `ClientBuilder.set_tls_client_config()`. Check out
+/// `rustls::ClientConfig.set_single_client_cert()` to set a TLS
+/// client certificate and key, and `rustls::ClientConfig.root_store`
+/// to set accepted CA roots for the server certificate. See the
+/// example `mqttc` in this repository for uses of all of these.
 #[derive(Default)]
 pub struct ClientBuilder {
     url: Option<Url>,
