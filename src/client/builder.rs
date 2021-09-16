@@ -200,14 +200,6 @@ impl ClientBuilder {
         self
     }
 
-    /// Sets the connection mode to the given value
-    ///
-    /// The default is to use Tcp
-    pub fn set_connection_mode(&mut self, mode: ConnectionMode) -> &mut Self {
-        self.connection_mode = mode;
-        self
-    }
-
     /// Set whether to automatically connect and reconnect.
     ///
     /// The default is true.
