@@ -112,19 +112,32 @@ pub struct Client {
 /// After calling `connect` again, publishers will have to be recreated by calling `Client::publisher`.
 /// 
 /// ```no_run
-/// # use mqtt_async_client::client::Client;
+/// use mqtt_async_client::client:: {
+///    Client,
+///    Publish
+/// };
 /// 
-/// let client = ..;
+/// let client =
+///     Client::builder()
+///        .set_url_string("mqtt://example.com").unwrap()
+///        .build()
+///        .unwrap();
 ///  
-/// let publisher1 = client.publisher();
-/// let publisher2 = client.publisher();  // Or use publisher1.clone()
+/// let publisher1 = client.publisher().unwrap();
+/// let publisher2 = client.publisher().unwrap();  // Or use publisher1.clone()
 ///
-/// tokio::spawn(async {
-///   publisher1.publish(..)
+/// tokio::spawn(async move {
+///   publisher1.publish(&Publish::new(
+///     String::from("topic"), 
+///     vec![0u8, 1u8]
+///   ));
 /// });
 ///
-/// tokio::spawn(async {
-///   publisher2.publish(..)
+/// tokio::spawn(async move {
+///   publisher2.publish(&Publish::new(
+///     String::from("topic"), 
+///     vec![5u8, 8u8]
+///   ));
 /// });
 /// ```
 #[derive(Clone)]
