@@ -111,7 +111,7 @@ pub struct Client {
 /// Publisher instances are invalidated when the client disconnects (after retrying).
 /// After calling `connect` again, publishers will have to be recreated by calling `Client::publisher`.
 /// 
-/// ```
+/// ```no_run
 /// # use mqtt_async_client::client::Client;
 /// 
 /// let client = ..;
