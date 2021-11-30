@@ -916,6 +916,8 @@ impl IoTask {
 
         match read {
             Err(Error::Disconnected) => {
+                // Drop Connection as socket disconnected itself
+                self.shutdown_conn().await;
                 self.tx_recv_published.send(Err(Error::Disconnected)).await
                     .map_err(Error::from_std_err)?;
             }
