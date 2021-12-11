@@ -42,9 +42,12 @@ use mqttrs::{
 };
 #[cfg(feature = "tls")]
 use rustls;
+#[cfg(feature = "tls")]
+use std::convert::TryInto;
 use std::{
     cmp::min,
     collections::BTreeMap,
+    convert::TryFrom,
     fmt,
     sync::{
         Arc,
@@ -72,7 +75,7 @@ use tokio::{
     },
 };
 #[cfg(feature = "tls")]
-use tokio_rustls::{self, webpki::DNSNameRef, TlsConnector};
+use tokio_rustls::{self, TlsConnector};
 use url::Url;
 
 /// An MQTT client.
@@ -550,8 +553,8 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
         ConnectionMode::Tls(ref c) => {
             let port = opts.url.port().unwrap_or(8883);
             let connector = TlsConnector::from(c.clone());
-            let domain = DNSNameRef::try_from_ascii_str(host)
-                .map_err(|e| Error::from_std_err(e))?;
+            let domain = host.try_into()
+                .map_err(|_e| Error::String("Error parsing host.".into()))?;
             let tcp = TcpStream::connect((host, port)).await?;
             let conn = connector.connect(domain, tcp).await?;
             Ok(AsyncStream::TlsStream(conn))
@@ -597,7 +600,7 @@ async fn connect_stream(opts: &ClientOptions) -> Result<AsyncStream> {
             let port = opts.url.port().unwrap_or(443);
             let tls_stream = TlsConnector::from(c.clone())
                 .connect(
-                    DNSNameRef::try_from_ascii_str(host).map_err(|e| Error::from_std_err(e))?,
+                    host.try_into().map_err(|_e| Error::String("Error parsing host.".into()))?,
                     TcpStream::connect((host, port)).await?,
                 )
                 .await?;
@@ -1081,7 +1084,7 @@ impl IoTask {
             }
             if *read_bufn > 0 {
                 // We already have some bytes in the buffer. Try to decode a packet
-                read_buf.split_off(*read_bufn);
+                let _ = read_buf.split_off(*read_bufn);
                 let old_len = read_buf.len();
                 let decoded = mqttrs::decode(read_buf)?;
                 if cfg!(feature = "unsafe-logging") {

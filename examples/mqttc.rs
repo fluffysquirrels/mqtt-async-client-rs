@@ -27,8 +27,6 @@ use rustls;
 use std::io::Cursor;
 use structopt::StructOpt;
 use tokio::time::Duration;
-#[cfg(feature = "tls")]
-use webpki_roots;
 
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
@@ -55,21 +53,19 @@ struct Args {
     /// Enable TLS and set the path to a PEM file containing the
     /// CA certificate that signs the remote server's certificate.
     #[structopt(long)]
+    #[cfg(feature = "tls")]
     tls_server_ca_file: Option<String>,
-
-    /// Enable TLS and trust the CA certificates in the webpki-roots
-    /// crate, ultimately Mozilla's root certificates.
-    #[structopt(long)]
-    tls_mozilla_root_cas: bool,
 
     /// Enable TLS and set the path to a PEM file containing the
     /// client certificate for client authentication.
     #[structopt(long)]
+    #[cfg(feature = "tls")]
     tls_client_crt_file: Option<String>,
 
     /// Enable TLS and set the path to a PEM file containing the
     /// client rsa key for client authentication.
     #[structopt(long)]
+    #[cfg(feature = "tls")]
     tls_client_rsa_key_file: Option<String>,
 
     /// Keepalive interval in seconds
@@ -198,45 +194,56 @@ fn client_from_args(args: Args) -> Result<Client> {
 
     #[cfg(feature = "tls")]
     {
-        let cc = if let Some(s) = args.tls_server_ca_file {
-            let mut cc = rustls::ClientConfig::new();
+        let cc_wants_transparency_policy = if let Some(s) = args.tls_server_ca_file {
             let cert_bytes = std::fs::read(s)?;
-            let cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
-                .map_err(|_| Error::from("Error parsing server CA cert file"))?
-                [0].clone();
-            cc.root_store.add(&cert)
-                .map_err(|e| Error::from_std_err(e))?;
-            Some(cc)
-        } else if args.tls_mozilla_root_cas {
-            let mut cc = rustls::ClientConfig::new();
-            cc.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-            Some(cc)
+            let cert = rustls_pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
+                .map_err(|_| Error::from("Error parsing server CA cert file"))?[0]
+                .clone();
+            let mut roots = rustls::RootCertStore::empty();
+            roots
+                .add(&rustls::Certificate(cert))
+                .map_err(|_| Error::String("Error adding server CA cert file to root store.".into()))?;
+            let cc = rustls::ClientConfig::builder()
+                .with_safe_defaults()
+                .with_root_certificates(roots);
+            cc
         } else {
-            None
-        };
-
-        let cc = if let Some((crt_file, key_file)) = args.tls_client_crt_file.zip(args.tls_client_rsa_key_file) {
-            let cert_bytes = std::fs::read(crt_file)?;
-            let client_cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
-                .map_err(|_| Error::from("Error parsing client cert file"))?
-                [0].clone();
-
-            let key_bytes = std::fs::read(key_file)?;
-            let client_key = rustls::internal::pemfile::rsa_private_keys(&mut Cursor::new(&key_bytes[..]))
-                .map_err(|_| Error::from("Error parsing client key file"))?
-                [0].clone();
-
-            let mut cc = cc.unwrap_or_else(rustls::ClientConfig::new);
-            cc.set_single_client_cert(vec![client_cert], client_key)
-              .map_err(|e| Error::from(format!("Error setting client cert: {}", e)))?;
-            Some(cc)
-        } else {
+            let mut roots = rustls::RootCertStore::empty();
+            for cert in rustls_native_certs::load_native_certs()? {
+                roots
+                    .add(&rustls::Certificate(cert.0))
+                    .map_err(|_| Error::String("Error adding CA cert file to root store.".into()))?;
+            }
+            let cc = rustls::ClientConfig::builder()
+                .with_safe_defaults()
+                .with_root_certificates(roots);
             cc
         };
 
-        if let Some(cc) = cc {
-            b.set_tls_client_config(cc);
-        }
+        let cc = if let Some((crt_file, key_file)) =
+            args.tls_client_crt_file.zip(args.tls_client_rsa_key_file)
+        {
+            let cert_bytes = std::fs::read(crt_file)?;
+            let client_cert = rustls_pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
+                .map_err(|_| Error::from("Error parsing client cert file"))?[0]
+                .clone();
+
+            let key_bytes = std::fs::read(key_file)?;
+            let client_key = rustls_pemfile::rsa_private_keys(&mut Cursor::new(&key_bytes[..]))
+                .map_err(|_| Error::from("Error parsing client key file"))?[0]
+                .clone();
+
+            cc_wants_transparency_policy
+                .with_single_cert(
+                    vec![rustls::Certificate(client_cert)],
+                    rustls::PrivateKey(client_key),
+                )
+                .map_err(|e| Error::from(format!("Error setting client cert: {}", e)))?
+        } else {
+            cc_wants_transparency_policy.with_no_client_auth()
+        };
+
+        b.set_tls_client_config(cc);
     }
 
     b.build()

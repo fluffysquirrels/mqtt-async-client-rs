@@ -31,9 +31,9 @@ use mqtt_async_client::{
 use mqtt_async_client::Error;
 #[cfg(feature = "tls")]
 use rustls;
-use std::sync::Once;
 #[cfg(feature = "tls")]
 use std::io::Cursor;
+use std::sync::Once;
 use tokio::{
     self,
     time::{
@@ -230,12 +230,19 @@ fn retain() -> Result<()> {
 
 #[cfg(feature = "tls")]
 fn tls_client() -> Result<Client> {
-    let mut cc = rustls::ClientConfig::new();
     let cert_bytes = include_bytes!("certs/cacert.pem");
-    let cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
-        .map_err(|_| Error::from("Error parsing cert file"))?[0].clone();
-    cc.root_store.add(&cert)
-        .map_err(|e| Error::from_std_err(e))?;
+    let cert = rustls_pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
+        .map_err(|_| Error::from("Error parsing cert file"))?[0]
+        .clone();
+    let mut roots = rustls::RootCertStore::empty();
+    roots
+        .add(&rustls::Certificate(cert))
+        .map_err(|_| Error::String("Error adding CA to root store.".into()))?;
+    let cc = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+
     Client::builder()
         .set_url_string("mqtts://localhost:8883")?
         .set_tls_client_config(cc)
@@ -246,14 +253,18 @@ fn tls_client() -> Result<Client> {
 #[cfg(feature = "websocket")]
 fn websocket_secure_client() -> Result<Client> {
     let tls_config = {
-        let mut cc = rustls::ClientConfig::new();
         let cert_bytes = include_bytes!("certs/cacert.pem");
-        let cert = rustls::internal::pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
+        let cert = rustls_pemfile::certs(&mut Cursor::new(&cert_bytes[..]))
             .map_err(|_| Error::from("Error parsing cert file"))?[0]
             .clone();
-        cc.root_store
-            .add(&cert)
-            .map_err(|e| Error::from_std_err(e))?;
+        let mut roots = rustls::RootCertStore::empty();
+        roots
+            .add(&rustls::Certificate(cert))
+            .map_err(|_| Error::String("Error adding CA to root store.".into()))?;
+        let cc = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
         cc
     };
     Client::builder()

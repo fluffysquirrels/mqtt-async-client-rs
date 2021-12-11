@@ -88,7 +88,19 @@ impl ClientBuilder {
             ConnectionMode::Tls(config) => config.clone(),
             #[cfg(feature = "websocket")]
             ConnectionMode::WebsocketSecure(config) => config.clone(),
-            _ => Arc::new(rustls::ClientConfig::new()),
+            _ => {
+                let mut roots = rustls::RootCertStore::empty();
+                for cert in rustls_native_certs::load_native_certs()? {
+                    roots
+                        .add(&rustls::Certificate(cert.0))
+                        .map_err(|_| Error::String("Error adding CA to root store.".into()))?;
+                }
+                let config = rustls::ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(roots)
+                    .with_no_client_auth();
+                Arc::new(config)
+            }
         };
         self.connection_mode = match url.scheme() {
             "mqtt" => ConnectionMode::Tcp,
