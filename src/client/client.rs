@@ -74,6 +74,7 @@ use tokio::{
 #[cfg(feature = "tls")]
 use tokio_rustls::{self, webpki::DNSNameRef, TlsConnector};
 use url::Url;
+use Publish as LastWill;
 
 /// An MQTT client.
 ///
@@ -128,6 +129,7 @@ pub(crate) struct ClientOptions {
     pub(crate) connection_mode: ConnectionMode,
     pub(crate) automatic_connect: bool,
     pub(crate) connect_retry_delay: Duration,
+    pub(crate) last_will: Option<LastWill>,
 }
 
 impl fmt::Debug for ClientOptions {
@@ -144,6 +146,7 @@ impl fmt::Debug for ClientOptions {
          .field("operation_timeout", &self.operation_timeout)
          .field("automatic_connect", &self.automatic_connect)
          .field("connect_retry_delay", &self.connect_retry_delay)
+         .field("last_will", &self.last_will)
          .finish()
     }
 }
@@ -643,7 +646,12 @@ fn connect_packet(opts: &ClientOptions) -> Result<Packet> {
             Some(cid) => cid.to_owned(),
         },
         clean_session: true, // TODO
-        last_will: None, // TODO
+        last_will: opts.last_will.as_ref().map(|lwt| mqttrs::LastWill {
+            topic: lwt.topic().to_owned(),
+            message: lwt.payload().to_owned(),
+            qos: lwt.qos(),
+            retain: lwt.retain(),
+        }),
         username: opts.username.clone(),
         password: opts.password.clone(),
     }))
@@ -746,7 +754,7 @@ impl IoTask {
             _ => panic!("Not reached"),
         };
         let conn = connect_packet(&self.options)?;
-        debug!("IoTask: Sending connect packet");
+        debug!("IoTask: Sending connect packet: {:?}", conn);
         Self::write_packet(&self.options, c, &conn).await?;
         let read = Self::read_packet(&mut c.stream,
                                      &mut c.read_buf,
@@ -1140,7 +1148,6 @@ impl Default for ConnectionMode {
         Self::Tcp
     }
 }
-
 
 #[cfg(test)]
 mod test {

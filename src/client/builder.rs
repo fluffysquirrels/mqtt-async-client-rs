@@ -3,6 +3,7 @@ use crate::{
         Client,
         ClientOptions,
         client::ConnectionMode,
+        value_types::Publish,
         KeepAlive,
     },
     Error, Result,
@@ -12,6 +13,7 @@ use crate::{
 };
 
 use url::Url;
+use Publish as LastWill;
 
 #[cfg(any(feature = "tls", feature = "websocket"))]
 use ::rustls;
@@ -37,6 +39,7 @@ pub struct ClientBuilder {
     connection_mode: ConnectionMode,
     automatic_connect: Option<bool>,
     connect_retry_delay: Option<Duration>,
+    last_will: Option<LastWill>,
 }
 
 impl ClientBuilder {
@@ -58,6 +61,7 @@ impl ClientBuilder {
             connection_mode: self.connection_mode.clone(),
             automatic_connect: self.automatic_connect.unwrap_or(true),
             connect_retry_delay: self.connect_retry_delay.unwrap_or(Duration::from_secs(30)),
+            last_will: self.last_will.clone(),
         })
     }
 
@@ -102,6 +106,14 @@ impl ClientBuilder {
         };
         self.url = Some(url);
         Ok(self)
+    }
+
+    /// Set the last will testament topic
+    ///
+    /// Topic published by broker as connection to (this) client is lost
+    pub fn set_last_will(&mut self, lwt: &LastWill) -> &mut Self {
+        self.last_will = Some(lwt.to_owned());
+        self
     }
 
     /// Set username to authenticate with.
