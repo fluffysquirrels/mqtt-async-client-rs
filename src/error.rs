@@ -11,6 +11,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     /// The client is disconnected.
     Disconnected,
+    /// The client read zero bytes from the stream.
+    ZeroRead,
 
     /// An error represented by an implementation of std::error::Error.
     StdError(Box<dyn std::error::Error + Send + Sync>),
@@ -33,6 +35,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> std::result::Result<(), fmt::Error> {
         match self {
             Error::Disconnected => write!(f, "Disconnected"),
+            Error::ZeroRead => write!(f, "ZeroRead"),
             Error::StdError(e) => write!(f, "{}", e),
             Error::String(s) => write!(f, "{}", s),
             Error::_NonExhaustive => panic!("Not reachable"),

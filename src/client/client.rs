@@ -69,7 +69,7 @@ use tokio::{
         error::Elapsed,
         Instant,
         timeout,
-    },
+    }, task::JoinHandle,
 };
 #[cfg(feature = "tls")]
 use tokio_rustls::{self, webpki::DNSNameRef, TlsConnector};
@@ -158,6 +158,9 @@ struct IoTaskHandle {
 
     /// Signal to the IO task to shutdown. Shared with IoTask.
     halt: Arc<AtomicBool>,
+
+    /// Handle to the async task
+    join_handle: Option<JoinHandle<()>>,
 }
 
 /// The state held by the IO task, a long-running tokio future. The IO
@@ -275,20 +278,21 @@ impl Client {
         let (tx_recv_published, rx_recv_published) =
             mpsc::channel::<Result<Packet>>(self.options.packet_buffer_len);
         let halt = Arc::new(AtomicBool::new(false));
-        self.io_task_handle = Some(IoTaskHandle {
-            tx_io_requests,
-            rx_recv_published,
-            halt: halt.clone(),
-        });
         let io = IoTask {
             options: self.options.clone(),
             rx_io_requests,
             tx_recv_published,
             state: IoTaskState::Disconnected,
             subscriptions: BTreeMap::new(),
-            halt,
+            halt: halt.clone(),
         };
-        self.options.runtime.spawn(io.run());
+        let join_handle = self.options.runtime.spawn(io.run());
+        self.io_task_handle = Some(IoTaskHandle {
+            tx_io_requests,
+            rx_recv_published,
+            halt,
+            join_handle: Some(join_handle),
+        });
         Ok(())
     }
 
@@ -479,11 +483,13 @@ impl Client {
         }
     }
 
-    async fn shutdown(&mut self) -> Result <()> {
-        let c = self.check_io_task()?;
-        c.halt.store(true, Ordering::SeqCst);
+    async fn shutdown(&mut self) -> Result<()> {
         self.write_request(IoType::ShutdownConnection, None).await?;
-        self.io_task_handle = None;
+        let mut c = self.take_io_task()?;
+        c.halt.store(true, Ordering::SeqCst);
+        if let Some(h) = c.join_handle.take() {
+            h.await.map_err(Error::from_std_err)?;
+        }
         Ok(())
     }
 
@@ -519,6 +525,12 @@ impl Client {
     fn check_io_task_mut(&mut self) -> Result<&mut IoTaskHandle> {
         match self.io_task_handle {
             Some(ref mut h) => Ok(h),
+            None => Err("No IO task, did you call connect?".into()),
+        }
+    }
+    fn take_io_task(&mut self) -> Result<IoTaskHandle> {
+        match self.io_task_handle.take() {
+            Some(h) => Ok(h),
             None => Err("No IO task, did you call connect?".into()),
         }
     }
@@ -687,15 +699,18 @@ impl IoTask {
     async fn run(mut self) {
         loop {
             if self.halt.load(Ordering::SeqCst) {
+                debug!("IoTask: draining by request.");
+                self.drain().await.unwrap();
                 self.shutdown_conn().await;
-                debug!("IoTask: halting by request.");
                 self.state = IoTaskState::Halted;
-                return;
             }
 
             match self.state {
-                IoTaskState::Halted => return,
-                IoTaskState::Disconnected =>
+                IoTaskState::Halted => {
+                    debug!("IoTask: halting");
+                    return;
+                }
+                IoTaskState::Disconnected => {
                     match Self::try_connect(&mut self).await {
                         Err(e) => {
                             error!("IoTask: Error connecting: {}", e);
@@ -712,20 +727,23 @@ impl IoTask {
                                 error!("IoTask: Error replaying subscriptions on reconnect: {}",
                                        e);
                             }
-                        },
-                    },
-                IoTaskState::Connected(_) =>
-                    match Self::run_once_connected(&mut self).await {
-                        Err(Error::Disconnected) => {
-                            info!("IoTask: Disconnected, resetting state");
-                            self.state = IoTaskState::Disconnected;
-                        },
-                        Err(e) => {
-                            error!("IoTask: Quitting run loop due to error: {}", e);
-                            return;
-                        },
-                        _ => {},
-                    },
+                        }
+                    }
+                }
+                IoTaskState::Connected(_) => match Self::run_once_connected(&mut self).await {
+                    Err(Error::Disconnected) => {
+                        info!("IoTask: Disconnected, resetting state");
+                        self.state = IoTaskState::Disconnected;
+                    }
+                    Err(Error::ZeroRead) => {
+                        // Nothing to do,
+                    }
+                    Err(e) => {
+                        error!("IoTask: Quitting run loop due to error: {}", e);
+                        return;
+                    }
+                    _ => {}
+                },
             }
         }
     }
@@ -904,6 +922,25 @@ impl IoTask {
                 debug!("IoTask: Timed out waiting for Pingresp, shutting down.");
                 self.shutdown_conn().await;
                 return Err(Error::Disconnected);
+            }
+        }
+    }
+    async fn drain(&mut self) -> Result<()> {
+        // Do not accept any more io requests
+        self.rx_io_requests.close();
+        loop {
+            let req = self.rx_io_requests.recv().await;
+            match req {
+                None => {
+                    // Sender closed.
+                    debug!("IoTask: Req stream closed, shutting down.");
+                    return Ok(());
+                }
+                Some(req) => match self.handle_io_req(req).await {
+                    Err(Error::Disconnected) => {}
+                    Err(e) => return Err(e),
+                    Ok(_) => {}
+                },
             }
         }
     }
@@ -1104,9 +1141,7 @@ impl IoTask {
             let nread = stream.read(&mut read_buf[*read_bufn..readlen]).await?;
             *read_bufn += nread;
             if nread == 0 {
-                // Socket disconnected
-                error!("IoTask: Socket disconnected");
-                return Err(Error::Disconnected);
+                return Err(Error::ZeroRead);
             }
         }
     }

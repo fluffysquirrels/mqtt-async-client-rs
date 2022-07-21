@@ -8,6 +8,9 @@ readme = "README.md"
 description = "An MQTT 3.1.1 client written in Rust, using async functions and tokio."
 repository = "https://github.com/fluffysquirrels/mqtt-async-client-rs"
 
+[[example]]
+name = "mqttc"
+
 [dependencies]
 bytes = "0.4.0"
 futures-core = "0.3.1"
