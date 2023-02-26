@@ -23,10 +23,10 @@ Run `cargo run --example mqttc` to print usage.
 The test app requires an MQTT broker to run against, see the
 instructions in `${REPO}/tests/integration_test.rs`.
 
-Run `cargo run --example mqttc -- --host localhost publish topic payload`
+Run `cargo run --example mqttc -- --url mqtt://localhost publish topic payload`
 to publish payload `payload` to topic `topic`.
 
-Run `RUST_LOG="info" cargo run --example mqttc -- --host localhost subscribe topic`
+Run `RUST_LOG="info" cargo run --example mqttc -- --url mqtt://localhost subscribe topic`
 to subscribe to topic `topic` and print any messages that are published to it.
 
 ## Changelog
